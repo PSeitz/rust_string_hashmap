@@ -1,0 +1,6 @@
+[package]
+name = "term_hashmap"
+version = "0.1.0"
+authors = ["Pascal Seitz <pascal.seitz@gmail.com>"]
+
+[dependencies]
