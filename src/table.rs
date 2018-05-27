@@ -28,10 +28,10 @@ use self::BucketState::*;
 /// (Even if we could have usize::MAX bytes allocated for buckets,
 /// each bucket stores at least a `HashUint`, so there can be no more than
 /// usize::MAX / size_of(usize) buckets.)
-type HashUint = usize;
+type HashUint = u32;
 
 const EMPTY_BUCKET: HashUint = 0;
-const EMPTY: usize = 1;
+const EMPTY: u32 = 1;
 
 /// Special `Unique<HashUint>` that uses the lower bit of the pointer
 /// to expose a boolean tag.
@@ -192,6 +192,18 @@ impl SafeHash {
 
     #[inline(always)]
     pub fn new(hash: u64) -> Self {
+        // We need to avoid 0 in order to prevent collisions with
+        // EMPTY_HASH. We can maintain our precious uniform distribution
+        // of initial indexes by unconditionally setting the MSB,
+        // effectively reducing the hashes by one bit.
+        //
+        // Truncate hash to fit in `HashUint`.
+        let hash_bits = size_of::<HashUint>() * 8;
+        SafeHash { hash: (1 << (hash_bits - 1)) | (hash as HashUint) }
+    }
+
+    #[inline(always)]
+    pub fn new_u32(hash: u32) -> Self {
         // We need to avoid 0 in order to prevent collisions with
         // EMPTY_HASH. We can maintain our precious uniform distribution
         // of initial indexes by unconditionally setting the MSB,
