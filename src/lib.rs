@@ -413,7 +413,7 @@ pub struct HashMap<V, S = FnvYoshiBuildHasher> {
 #[inline]
 fn search_hashed<V, M, F>(table: M, hash: SafeHash, is_match: F) -> InternalEntry<V, M>
     where M: Deref<Target = RawTable<String, V>>,
-          F: FnMut(&String) -> bool
+          F: FnMut(&str) -> bool
 {
     // This is the only function where capacity can be zero. To avoid
     // undefined behavior when Bucket::new gets the raw bucket in this
@@ -430,7 +430,7 @@ fn search_hashed<V, M, F>(table: M, hash: SafeHash, is_match: F) -> InternalEntr
 fn search_hashed_nonempty<V, M, F>(table: M, hash: SafeHash, mut is_match: F)
     -> InternalEntry<V, M>
     where M: Deref<Target = RawTable<String, V>>,
-          F: FnMut(&String) -> bool
+          F: FnMut(&str) -> bool
 {
     // Do not check the capacity as an extra branch could slow the lookup.
 
@@ -560,7 +560,7 @@ impl<V, S> HashMap<V, S>
     where S: BuildHasher
 {
     #[inline]
-    pub fn make_hash(&self, q: &String) -> SafeHash
+    pub fn make_hash(&self, q: &str) -> SafeHash
     {
         SafeHash::new_u32(hasher::fnv32a_yoshimitsu_hasher(q.as_bytes()))
         // table::make_hash(&self.hash_builder, x)
@@ -570,7 +570,7 @@ impl<V, S> HashMap<V, S>
     /// If you already have the hash for the key lying around, or if you need an
     /// InternalEntry, use search_hashed or search_hashed_nonempty.
     #[inline]
-    fn search<'a>(&'a self, q: &String)
+    fn search<'a>(&'a self, q: &str)
         -> Option<FullBucket<String, V, &'a RawTable<String, V>>>
     {
         if self.is_empty() {
@@ -582,7 +582,7 @@ impl<V, S> HashMap<V, S>
     }
 
     #[inline]
-    fn search_mut<'a>(&'a mut self, q: &String)
+    fn search_mut<'a>(&'a mut self, q: &str)
         -> Option<FullBucket<String, V, &'a mut RawTable<String, V>>>
     {
         if self.is_empty() {
@@ -841,7 +841,7 @@ impl<V, S> HashMap<V, S>
     ///
     /// If the key already exists, the hashtable will be returned untouched
     /// and a reference to the existing element will be returned.
-    fn insert_hashed_nocheck(&mut self, hash: SafeHash, k: &String, v: V) -> Option<V> {
+    fn insert_hashed_nocheck(&mut self, hash: SafeHash, k: &str, v: V) -> Option<V> {
         let entry = search_hashed(&mut self.table, hash, |key| key == k).into_entry(&k);
         match entry {
             Some(Occupied(mut elem)) => Some(elem.insert(v)),
@@ -998,7 +998,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(letters[&'u'], 1);
     /// assert_eq!(letters.get(&'y'), None);
     /// ```
-    pub fn entry(&mut self, key: &String) -> Entry<V> {
+    pub fn entry(&mut self, key: &str) -> Entry<V> {
         // Gotta resize now.
         self.reserve(1);
         let hash = self.make_hash(key);
@@ -1101,7 +1101,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.get(&2), None);
     /// ```
     #[inline]
-    pub fn get(&self, k: &String) -> Option<&V>
+    pub fn get(&self, k: &str) -> Option<&V>
     {
         self.search(k).map(|bucket| bucket.into_refs().1)
     }
@@ -1126,7 +1126,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.get_key_value(&1), Some((&1, &"a")));
     /// assert_eq!(map.get_key_value(&2), None);
     /// ```
-    pub fn get_key_value(&self, k: &String) -> Option<(&String, &V)>
+    pub fn get_key_value(&self, k: &str) -> Option<(&String, &V)>
     {
         self.search(k).map(|bucket| bucket.into_refs())
     }
@@ -1150,12 +1150,12 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.contains_key(&1), true);
     /// assert_eq!(map.contains_key(&2), false);
     /// ```
-    pub fn contains_key(&self, k: &String) -> bool
+    pub fn contains_key(&self, k: &str) -> bool
     {
         self.search(k).is_some()
     }
 
-    pub fn contains_hashed_key(&self, q: &String, hash:SafeHash) -> bool
+    pub fn contains_hashed_key(&self, q: &str, hash:SafeHash) -> bool
     {
         if self.is_empty() {
             return false;
@@ -1186,7 +1186,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.contains_key(&1), true);
     /// assert_eq!(map.contains_key(&2), false);
     /// ```
-    // pub fn contains_key_hashed(&self, hash: SafeHash, q: &String) -> bool
+    // pub fn contains_key_hashed(&self, hash: SafeHash, q: &str) -> bool
     //     where Q: Hash + Eq
     // {
 
@@ -1225,7 +1225,7 @@ impl<V, S> HashMap<V, S>
     /// }
     /// assert_eq!(map[&1], "b");
     /// ```
-    pub fn get_mut(&mut self, k: &String) -> Option<&mut V>
+    pub fn get_mut(&mut self, k: &str) -> Option<&mut V>
     {
         self.search_mut(k).map(|bucket| bucket.into_mut_refs().1)
     }
@@ -1311,7 +1311,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.remove(&1), Some("a"));
     /// assert_eq!(map.remove(&1), None);
     /// ```
-    pub fn remove(&mut self, k: &String) -> Option<V>
+    pub fn remove(&mut self, k: &str) -> Option<V>
     {
         self.search_mut(k).map(|bucket| pop_internal(bucket).1)
     }
@@ -1338,7 +1338,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.remove(&1), None);
     /// # }
     /// ```
-    pub fn remove_entry(&mut self, k: &String) -> Option<(String, V)>
+    pub fn remove_entry(&mut self, k: &str) -> Option<(String, V)>
     {
         self.search_mut(k)
             .map(|bucket| {
@@ -1361,7 +1361,7 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.len(), 4);
     /// ```
     pub fn retain<F>(&mut self, mut f: F)
-        where F: FnMut(&String, &mut V) -> bool
+        where F: FnMut(&str, &mut V) -> bool
     {
         if self.table.size() == 0 {
             return;
@@ -1592,7 +1592,7 @@ impl<V, M> InternalEntry<V, M> {
 
 impl<'a, V> InternalEntry<V, &'a mut RawTable<String, V>> {
     #[inline]
-    fn into_entry(self, key: &String) -> Option<Entry<'a, V>> {
+    fn into_entry(self, key: &str) -> Option<Entry<'a, V>> {
         match self {
             InternalEntry::Occupied { elem } => {
                 Some(Occupied(OccupiedEntry {
@@ -1973,7 +1973,7 @@ impl<'a, V> Entry<'a, V> {
     /// let mut map: HashMap<&str, u32> = HashMap::new();
     /// assert_eq!(map.entry("poneyland").key(), &"poneyland");
     /// ```
-    pub fn key(&self) -> &String {
+    pub fn key(&self) -> &str {
         match *self {
             Occupied(ref entry) => entry.key(),
             Vacant(ref entry) => entry.key(),
