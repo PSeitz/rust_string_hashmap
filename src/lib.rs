@@ -841,8 +841,8 @@ impl<V, S> HashMap<V, S>
     ///
     /// If the key already exists, the hashtable will be returned untouched
     /// and a reference to the existing element will be returned.
-    fn insert_hashed_nocheck(&mut self, hash: SafeHash, k: String, v: V) -> Option<V> {
-        let entry = search_hashed(&mut self.table, hash, |key| *key == k).into_entry(k);
+    fn insert_hashed_nocheck(&mut self, hash: SafeHash, k: &String, v: V) -> Option<V> {
+        let entry = search_hashed(&mut self.table, hash, |key| key == k).into_entry(&k);
         match entry {
             Some(Occupied(mut elem)) => Some(elem.insert(v)),
             Some(Vacant(elem)) => {
@@ -998,12 +998,12 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(letters[&'u'], 1);
     /// assert_eq!(letters.get(&'y'), None);
     /// ```
-    pub fn entry(&mut self, key: String) -> Entry<V> {
+    pub fn entry(&mut self, key: &String) -> Entry<V> {
         // Gotta resize now.
         self.reserve(1);
-        let hash = self.make_hash(&key);
-        search_hashed(&mut self.table, hash, |q| q.eq(&key))
-            .into_entry(key).expect("unreachable")
+        let hash = self.make_hash(key);
+        search_hashed(&mut self.table, hash, |q| q.eq(key))
+            .into_entry(&key).expect("unreachable")
     }
 
     /// Returns the number of elements in the map.
@@ -1258,7 +1258,7 @@ impl<V, S> HashMap<V, S>
     pub fn insert(&mut self, k: String, v: V) -> Option<V> {
         let hash = self.make_hash(&k);
         self.reserve(1);
-        self.insert_hashed_nocheck(hash, k, v)
+        self.insert_hashed_nocheck(hash, &k, v)
     }
 
     /// Inserts a key-value pair into the map.
@@ -1288,7 +1288,7 @@ impl<V, S> HashMap<V, S>
     /// ```
     pub fn insert_hashed(&mut self, hash: SafeHash, k: String, v: V) -> Option<V> {
         self.reserve(1);
-        self.insert_hashed_nocheck(hash, k, v)
+        self.insert_hashed_nocheck(hash, &k, v)
     }
 
     /// Removes a key from the map, returning the value at the key if the key
@@ -1592,43 +1592,24 @@ impl<V, M> InternalEntry<V, M> {
 
 impl<'a, V> InternalEntry<V, &'a mut RawTable<String, V>> {
     #[inline]
-    fn into_entry(self, key: String) -> Option<Entry<'a, V>> {
+    fn into_entry(self, key: &String) -> Option<Entry<'a, V>> {
         match self {
             InternalEntry::Occupied { elem } => {
                 Some(Occupied(OccupiedEntry {
-                    key: Some(key),
+                    //key: Some(key),
                     elem,
                 }))
             }
             InternalEntry::Vacant { hash, elem } => {
                 Some(Vacant(VacantEntry {
                     hash,
-                    key,
+                    key: key.to_string(),
                     elem,
                 }))
             }
             InternalEntry::TableIsEmpty => None,
         }
     }
-    // #[inline]
-    // fn into_entry_borrow(self, key: &String) -> Option<Entry<'a, V>> {
-    //     match self {
-    //         InternalEntry::Occupied { elem } => {
-    //             Some(Occupied(OccupiedEntry {
-    //                 key: Some(key),
-    //                 elem,
-    //             }))
-    //         }
-    //         InternalEntry::Vacant { hash, elem } => {
-    //             Some(Vacant(VacantEntry {
-    //                 hash,
-    //                 key,
-    //                 elem,
-    //             }))
-    //         }
-    //         InternalEntry::TableIsEmpty => None,
-    //     }
-    // }
 }
 
 /// A view into a single entry in a map, which may either be vacant or occupied.
@@ -1667,7 +1648,7 @@ impl<'a, V: 'a + Debug> Debug for Entry<'a, V> {
 ///
 /// [`Entry`]: enum.Entry.html
 pub struct OccupiedEntry<'a, V: 'a> {
-    key: Option<String>,
+    // key: Option<String>,
     elem: FullBucket<String, V, &'a mut RawTable<String, V>>,
 }
 
@@ -2206,72 +2187,7 @@ impl<'a, V> OccupiedEntry<'a, V> {
         pop_internal(self.elem).1
     }
 
-    /// Returns a key that was used for search.
-    ///
-    /// The key was retained for further use.
-    fn take_key(&mut self) -> Option<String> {
-        self.key.take()
-    }
 
-    /// Replaces the entry, returning the old key and value. The new key in the hash map will be
-    /// the key used to create this entry.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(map_entry_replace)]
-    /// use std::collections::hash_map::{Entry, HashMap};
-    /// use std::rc::Rc;
-    ///
-    /// let mut map: HashMap<Rc<String>, u32> = HashMap::new();
-    /// map.insert(Rc::new("Stringthing".to_string()), 15);
-    ///
-    /// let my_key = Rc::new("Stringthing".to_string());
-    ///
-    /// if let Entry::Occupied(entry) = map.entry(my_key) {
-    ///     // Also replace the key with a handle to our other key.
-    ///     let (old_key, old_value): (Rc<String>, u32) = entry.replace_entry(16);
-    /// }
-    ///
-    /// ```
-    pub fn replace_entry(mut self, value: V) -> (String, V) {
-        let (old_key, old_value) = self.elem.read_mut();
-
-        let old_key = mem::replace(old_key, self.key.unwrap());
-        let old_value = mem::replace(old_value, value);
-
-        (old_key, old_value)
-    }
-
-    /// Replaces the key in the hash map with the key used to create this entry.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(map_entry_replace)]
-    /// use std::collections::hash_map::{Entry, HashMap};
-    /// use std::rc::Rc;
-    ///
-    /// let mut map: HashMap<Rc<String>, u32> = HashMap::new();
-    /// let mut known_strings: Vec<Rc<String>> = Vec::new();
-    ///
-    /// // Initialise known strings, run program, etc.
-    ///
-    /// reclaim_memory(&mut map, &known_strings);
-    ///
-    /// fn reclaim_memory(map: &mut HashMap<Rc<String>, u32>, known_strings: &[Rc<String>] ) {
-    ///     for s in known_strings {
-    ///         if let Entry::Occupied(entry) = map.entry(s.clone()) {
-    ///             // Replaces the entry's key with our version of it in `known_strings`.
-    ///             entry.replace_key();
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    pub fn replace_key(mut self) -> String {
-        let (old_key, _) = self.elem.read_mut();
-        mem::replace(old_key, self.key.unwrap())
-    }
 }
 
 impl<'a, V: 'a> VacantEntry<'a, V> {

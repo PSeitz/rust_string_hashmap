@@ -9,6 +9,7 @@ crunchy = "0.2.1"
 fnv = "1.0.6"
 log = "0.4.1"
 measure_time = "0.5.0"
+cpuprofiler = "0.0.3"
 
 [lib]
 name = "term_hashmap"
@@ -24,3 +25,4 @@ debug = false
 lto = true
 opt-level = 3
 panic = "unwind"
+

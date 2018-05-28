@@ -190,17 +190,17 @@ impl SafeHash {
         self.hash
     }
 
-    #[inline(always)]
-    pub fn new(hash: u64) -> Self {
-        // We need to avoid 0 in order to prevent collisions with
-        // EMPTY_HASH. We can maintain our precious uniform distribution
-        // of initial indexes by unconditionally setting the MSB,
-        // effectively reducing the hashes by one bit.
-        //
-        // Truncate hash to fit in `HashUint`.
-        let hash_bits = size_of::<HashUint>() * 8;
-        SafeHash { hash: (1 << (hash_bits - 1)) | (hash as HashUint) }
-    }
+    // #[inline(always)]
+    // pub fn new(hash: u64) -> Self {
+    //     // We need to avoid 0 in order to prevent collisions with
+    //     // EMPTY_HASH. We can maintain our precious uniform distribution
+    //     // of initial indexes by unconditionally setting the MSB,
+    //     // effectively reducing the hashes by one bit.
+    //     //
+    //     // Truncate hash to fit in `HashUint`.
+    //     let hash_bits = size_of::<HashUint>() * 8;
+    //     SafeHash { hash: (1 << (hash_bits - 1)) | (hash as HashUint) }
+    // }
 
     #[inline(always)]
     pub fn new_u32(hash: u32) -> Self {
@@ -218,14 +218,14 @@ impl SafeHash {
 /// We need to remove hashes of 0. That's reserved for empty buckets.
 /// This function wraps up `hash_keyed` to be the only way outside this
 /// module to generate a SafeHash.
-pub fn make_hash<T: ?Sized, S>(hash_state: &S, t: &T) -> SafeHash
-    where T: Hash,
-          S: BuildHasher
-{
-    let mut state = hash_state.build_hasher();
-    t.hash(&mut state);
-    SafeHash::new(state.finish())
-}
+// pub fn make_hash<T: ?Sized, S>(hash_state: &S, t: &T) -> SafeHash
+//     where T: Hash,
+//           S: BuildHasher
+// {
+//     let mut state = hash_state.build_hasher();
+//     t.hash(&mut state);
+//     SafeHash::new(state.finish())
+// }
 
 // `replace` casts a `*HashUint` to a `*SafeHash`. Since we statically
 // ensure that a `FullBucket` points to an index with a non-zero hash,
