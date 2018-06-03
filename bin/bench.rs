@@ -17,20 +17,20 @@ fn main() {
     test_custom_entry(&contents);
     test_yoshi(&contents);
     test_fnv(&contents);
-    test_normal(&contents);
-    // test_stacker(&contents);
+    // test_normal(&contents);
+    test_stacker(&contents);
     test_custom(&contents);
     test_custom_entry(&contents);
     test_yoshi(&contents);
     test_fnv(&contents);
-    test_normal(&contents);
-    // test_stacker(&contents);
+    // test_normal(&contents);
+    test_stacker(&contents);
     test_custom(&contents);
     test_custom_entry(&contents);
     test_yoshi(&contents);
     test_fnv(&contents);
-    test_normal(&contents);
-    // test_stacker(&contents);
+    // test_normal(&contents);
+    test_stacker(&contents);
     test_custom(&contents);
     test_custom_entry(&contents);
 
@@ -116,8 +116,11 @@ fn test_custom_entry(text: &str) -> bool {
     // mappo.reserve(100_000);
     for line in text.split_whitespace() {
 
-        let stat = mappo.entry(line).or_insert(0);
+        
+        let stat = mappo.get_or_insert(line, ||0);
         *stat += 1;
+        // let stat = mappo.entry(line).or_insert(0);
+        // *stat += 1;
 
         // mappo.entry(line)
         // let hash = mappo.make_hash(line);
@@ -146,7 +149,7 @@ use term_hashmap::stacker::TermHashMap;
 
 fn test_stacker(text: &str) -> u32  {
     print_time!("test_stacker");
-    let heap_size_in_bytes_per_thread  = 12_550_000;
+    let heap_size_in_bytes_per_thread  = 2_550_000;
     let (heap_size, table_size) = split_memory(heap_size_in_bytes_per_thread);
     let heap = Heap::with_capacity(heap_size);
     let mut mappo: TermHashMap = TermHashMap::new(table_size, &heap);
