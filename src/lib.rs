@@ -465,7 +465,7 @@ fn search_hashed_nonempty<V, M, F>(table: M, hash: SafeHash, mut is_match: F)
         // If the hash doesn't match, it can't be this one..
         if hash == full.hash() {
             // If the key doesn't match, it can't be this one..
-            if is_match(full.read().0) {
+            if is_match(full.read().0) { // TODO compare strings here ... or a second hash :)
                 return InternalEntry::Occupied { elem: full };
             }
         }
@@ -476,14 +476,20 @@ fn search_hashed_nonempty<V, M, F>(table: M, hash: SafeHash, mut is_match: F)
 }
 
 
+fn add_and_get_text_position(key: &str, bytes: &mut Vec<u8>) -> (u32, u32) {
+    let text_position = (bytes.len() as u32, key.as_bytes().len() as u32);
+    bytes.extend(key.as_bytes());
+    text_position
+}
+
 /// Perform robin hood bucket stealing at the given `bucket`. You must
 /// also pass that bucket's displacement so we don't have to recalculate it.
 ///
 /// `hash`, `key`, and `val` are the elements to "robin hood" into the hashtable.
-fn robin_hood<'a, V: 'a>(bucket: FullBucketMut<'a, V>,
+fn robin_hood<'a, V: 'a>(mut bucket: FullBucketMut<'a, V>,
                                 mut displacement: usize,
                                 mut hash: SafeHash,
-                                mut key: String,
+                                key: &str,
                                 mut val: V)
                                 -> FullBucketMut<'a, V> {
     let size = bucket.table().size();
@@ -493,12 +499,13 @@ fn robin_hood<'a, V: 'a>(bucket: FullBucketMut<'a, V>,
     // `displacement` buckets away from the initial one.
     let idx_end = (bucket.index() + size - bucket.displacement()) % raw_capacity;
     // Save the *starting point*.
+    
+    let mut text_position = add_and_get_text_position(&key, &mut bucket.table_mut().raw_text_data );
     let mut bucket = bucket.stash();
-
     loop {
-        let (old_hash, old_key, old_val) = bucket.replace(hash, key, val);
+        let (old_hash, old_key, old_val) = bucket.replace(hash, text_position, val);
         hash = old_hash;
-        key = old_key;
+        text_position = old_key;
         val = old_val;
 
         loop {
@@ -509,7 +516,7 @@ fn robin_hood<'a, V: 'a>(bucket: FullBucketMut<'a, V>,
             let full_bucket = match probe.peek() {
                 Empty(bucket) => {
                     // Found a hole!
-                    let bucket = bucket.put(hash, &&key, val);
+                    let bucket = bucket.put(hash, &&text_position, val);
                     // Now that it's stolen, just read the value's pointer
                     // right out of the table! Go back to the *starting point*.
                     //
@@ -575,7 +582,7 @@ impl<V, S> HashMap<V, S>
 
     // The caller should ensure that invariants by Robin Hood Hashing hold
     // and that there's space in the underlying table.
-    fn insert_hashed_ordered(&mut self, hash: SafeHash, k: String, v: V) {
+    fn insert_hashed_ordered_text_pos(&mut self, hash: SafeHash, text_position: (u32, u32), v: V) {
         let mut buckets = Bucket::new(&mut self.table, hash);
         let start_index = buckets.index();
 
@@ -584,7 +591,7 @@ impl<V, S> HashMap<V, S>
             // Not even DIBs for Robin Hood.
             buckets = match buckets.peek() {
                 Empty(empty) => {
-                    empty.put(hash, &k, v);
+                    empty.put(hash, &text_position, v);
                     return;
                 }
                 Full(b) => b.into_bucket(),
@@ -788,6 +795,8 @@ impl<V, S> HashMap<V, S>
         );
         let old_size = old_table.size();
 
+        mem::swap(&mut self.table.raw_text_data, &mut old_table.raw_text_data);
+
         if old_table.size() == 0 {
             return Ok(());
         }
@@ -812,7 +821,7 @@ impl<V, S> HashMap<V, S>
                 Full(bucket) => {
                     let h = bucket.hash();
                     let (b, k, v) = bucket.take();
-                    self.insert_hashed_ordered(h, k, v);
+                    self.insert_hashed_ordered_text_pos(h, k, v);
                     if b.table().size() == 0 {
                         break;
                     }
@@ -853,103 +862,41 @@ impl<V, S> HashMap<V, S>
         let entry = search_hashed(&mut self.table, hash, |key| key == k);
         insert_if_empty_and_get_mut(entry, k, constructor)
     }
-
+//TODO: -- enable iterators
     /// An iterator visiting all keys in arbitrary order.
     /// The iterator element type is `&'a K`.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::collections::HashMap;
-    ///
-    /// let mut map = HashMap::new();
-    /// map.insert("a", 1);
-    /// map.insert("b", 2);
-    /// map.insert("c", 3);
-    ///
-    /// for key in map.keys() {
-    ///     println!("{}", key);
-    /// }
-    /// ```
-    pub fn keys(&self) -> Keys<V> {
-        Keys { inner: self.iter() }
-    }
+    // pub fn keys(&self) -> Keys<V> {
+    //     Keys { inner: self.iter() }
+    // }
 
     /// An iterator visiting all values in arbitrary order.
     /// The iterator element type is `&'a V`.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::collections::HashMap;
-    ///
-    /// let mut map = HashMap::new();
-    /// map.insert("a", 1);
-    /// map.insert("b", 2);
-    /// map.insert("c", 3);
-    ///
-    /// for val in map.values() {
-    ///     println!("{}", val);
-    /// }
-    /// ```
-    pub fn values(&self) -> Values<V> {
-        Values { inner: self.iter() }
-    }
+    // pub fn values(&self) -> Values<V> {
+    //     Values { inner: self.iter() }
+    // }
 
-    pub fn values_mut(&mut self) -> ValuesMut<V> {
-        ValuesMut { inner: self.iter_mut() }
-    }
+    // pub fn values_mut(&mut self) -> ValuesMut<V> {
+    //     ValuesMut { inner: self.iter_mut() }
+    // }
 
-    pub fn iter(&self) -> Iter<V> {
-        Iter { inner: self.table.iter() }
-    }
+    // pub fn iter(&self) -> Iter<V> {
+    //     Iter { inner: self.table.iter() }
+    // }
 
     /// An iterator visiting all key-value pairs in arbitrary order,
     /// with mutable references to the values.
     /// The iterator element type is `(&'a String, &'a mut V)`.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::collections::HashMap;
-    ///
-    /// let mut map = HashMap::new();
-    /// map.insert("a", 1);
-    /// map.insert("b", 2);
-    /// map.insert("c", 3);
-    ///
-    /// // Update all values
-    /// for (_, val) in map.iter_mut() {
-    ///     *val *= 2;
-    /// }
-    ///
-    /// for (key, val) in &map {
-    ///     println!("key: {} val: {}", key, val);
-    /// }
-    /// ```
-    pub fn iter_mut(&mut self) -> IterMut<V> {
-        IterMut { inner: self.table.iter_mut() }
-    }
+    // pub fn iter_mut(&mut self) -> IterMut<V> {
+    //     IterMut { inner: self.table.iter_mut() }
+    // }
+
+//TODO -- enable Iterators
 
     /// Gets the given key's corresponding entry in the map for in-place manipulation.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::collections::HashMap;
-    ///
-    /// let mut letters = HashMap::new();
-    ///
-    /// for ch in "a short treatise on fungi".chars() {
-    ///     let counter = letters.entry(ch).or_insert(0);
-    ///     *counter += 1;
-    /// }
-    ///
-    /// assert_eq!(letters[&'s'], 2);
-    /// assert_eq!(letters[&'t'], 3);
-    /// assert_eq!(letters[&'u'], 1);
-    /// assert_eq!(letters.get(&'y'), None);
-    /// ```
     // pub fn entry(&mut self, key: &str) -> Entry<V> {
     //     // Gotta resize now.
     //     self.reserve(1);
@@ -1036,10 +983,11 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.get_key_value(&1), Some((&1, &"a")));
     /// assert_eq!(map.get_key_value(&2), None);
     /// ```
-    pub fn get_key_value(&self, k: &str) -> Option<(&String, &V)>
-    {
-        self.search(k).map(|bucket| bucket.into_refs())
-    }
+    // TODO ENABLE
+    // pub fn get_key_value(&self, k: &str) -> Option<(&String, &V)>
+    // {
+    //     self.search(k).map(|bucket| bucket.into_refs())
+    // }
 
     /// Returns true if the map contains a value for the specified key.
     ///
@@ -1203,33 +1151,36 @@ impl<V, S> HashMap<V, S>
 
 }
 
-impl<V, S> PartialEq for HashMap<V, S>
-    where V: PartialEq,
-          S: BuildHasher
-{
-    fn eq(&self, other: &HashMap<V, S>) -> bool {
-        if self.len() != other.len() {
-            return false;
-        }
+//TODO Enable
+// impl<V, S> PartialEq for HashMap<V, S>
+//     where V: PartialEq,
+//           S: BuildHasher
+// {
+//     fn eq(&self, other: &HashMap<V, S>) -> bool {
+//         if self.len() != other.len() {
+//             return false;
+//         }
 
-        self.iter().all(|(key, value)| other.get(key).map_or(false, |v| *value == *v))
-    }
-}
+//         self.iter().all(|(key, value)| other.get(key).map_or(false, |v| *value == *v))
+//     }
+// }
 
-impl<V, S> Eq for HashMap<V, S>
-    where V: Eq,
-          S: BuildHasher
-{
-}
+//TODO Enable
+// impl<V, S> Eq for HashMap<V, S>
+//     where V: Eq,
+//           S: BuildHasher
+// {
+// }
 
-impl<V, S> Debug for HashMap<V, S>
-    where V: Debug,
-          S: BuildHasher
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_map().entries(self.iter()).finish()
-    }
-}
+//TODO Enable
+// impl<V, S> Debug for HashMap<V, S>
+//     where V: Debug,
+//           S: BuildHasher
+// {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_map().entries(self.iter()).finish()
+//     }
+// }
 
 impl<V, S> Default for HashMap<V, S>
     where S: BuildHasher + Default
@@ -1256,6 +1207,8 @@ impl<'a, V, S> Index<&'a String> for HashMap<V, S>
     }
 }
 
+// ------ TODO: Enable Iterators
+
 /// An iterator over the entries of a `HashMap`.
 ///
 /// This `struct` is created by the [`iter`] method on [`HashMap`]. See its
@@ -1263,98 +1216,98 @@ impl<'a, V, S> Index<&'a String> for HashMap<V, S>
 ///
 /// [`iter`]: struct.HashMap.html#method.iter
 /// [`HashMap`]: struct.HashMap.html
-pub struct Iter<'a, V: 'a> {
-    inner: table::Iter<'a, V>,
-}
+// pub struct Iter<'a, V: 'a> {
+//     inner: table::Iter<'a, V>,
+// }
 
-// FIXME(#26925) Remove in favor of `#[derive(Clone)]`
-impl<'a, V> Clone for Iter<'a, V> {
-    fn clone(&self) -> Iter<'a, V> {
-        Iter { inner: self.inner.clone() }
-    }
-}
+// // FIXME(#26925) Remove in favor of `#[derive(Clone)]`
+// impl<'a, V> Clone for Iter<'a, V> {
+//     fn clone(&self) -> Iter<'a, V> {
+//         Iter { inner: self.inner.clone() }
+//     }
+// }
 
-impl<'a, V: Debug> fmt::Debug for Iter<'a, V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.clone())
-            .finish()
-    }
-}
+// impl<'a, V: Debug> fmt::Debug for Iter<'a, V> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_list()
+//             .entries(self.clone())
+//             .finish()
+//     }
+// }
 
-/// A mutable iterator over the entries of a `HashMap`.
-///
-/// This `struct` is created by the [`iter_mut`] method on [`HashMap`]. See its
-/// documentation for more.
-///
-/// [`iter_mut`]: struct.HashMap.html#method.iter_mut
-/// [`HashMap`]: struct.HashMap.html
-pub struct IterMut<'a, V: 'a> {
-    inner: table::IterMut<'a, V>,
-}
+// /// A mutable iterator over the entries of a `HashMap`.
+// ///
+// /// This `struct` is created by the [`iter_mut`] method on [`HashMap`]. See its
+// /// documentation for more.
+// ///
+// /// [`iter_mut`]: struct.HashMap.html#method.iter_mut
+// /// [`HashMap`]: struct.HashMap.html
+// pub struct IterMut<'a, V: 'a> {
+//     inner: table::IterMut<'a, V>,
+// }
 
-/// An owning iterator over the entries of a `HashMap`.
-///
-/// This `struct` is created by the [`into_iter`] method on [`HashMap`][`HashMap`]
-/// (provided by the `IntoIterator` trait). See its documentation for more.
-///
-/// [`into_iter`]: struct.HashMap.html#method.into_iter
-/// [`HashMap`]: struct.HashMap.html
-pub struct IntoIter<V> {
-    pub inner: table::IntoIter<V>,
-}
+// /// An owning iterator over the entries of a `HashMap`.
+// ///
+// /// This `struct` is created by the [`into_iter`] method on [`HashMap`][`HashMap`]
+// /// (provided by the `IntoIterator` trait). See its documentation for more.
+// ///
+// /// [`into_iter`]: struct.HashMap.html#method.into_iter
+// /// [`HashMap`]: struct.HashMap.html
+// pub struct IntoIter<V> {
+//     pub inner: table::IntoIter<V>,
+// }
 
-/// An iterator over the keys of a `HashMap`.
-///
-/// This `struct` is created by the [`keys`] method on [`HashMap`]. See its
-/// documentation for more.
-///
-/// [`keys`]: struct.HashMap.html#method.keys
-/// [`HashMap`]: struct.HashMap.html
-pub struct Keys<'a, V: 'a> {
-    inner: Iter<'a, V>,
-}
+// /// An iterator over the keys of a `HashMap`.
+// ///
+// /// This `struct` is created by the [`keys`] method on [`HashMap`]. See its
+// /// documentation for more.
+// ///
+// /// [`keys`]: struct.HashMap.html#method.keys
+// /// [`HashMap`]: struct.HashMap.html
+// pub struct Keys<'a, V: 'a> {
+//     inner: Iter<'a, V>,
+// }
 
-// FIXME(#26925) Remove in favor of `#[derive(Clone)]`
-impl<'a, V> Clone for Keys<'a, V> {
-    fn clone(&self) -> Keys<'a, V> {
-        Keys { inner: self.inner.clone() }
-    }
-}
+// // FIXME(#26925) Remove in favor of `#[derive(Clone)]`
+// impl<'a, V> Clone for Keys<'a, V> {
+//     fn clone(&self) -> Keys<'a, V> {
+//         Keys { inner: self.inner.clone() }
+//     }
+// }
 
-impl<'a, V> fmt::Debug for Keys<'a, V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.clone())
-            .finish()
-    }
-}
+// impl<'a, V> fmt::Debug for Keys<'a, V> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_list()
+//             .entries(self.clone())
+//             .finish()
+//     }
+// }
 
-/// An iterator over the values of a `HashMap`.
-///
-/// This `struct` is created by the [`values`] method on [`HashMap`]. See its
-/// documentation for more.
-///
-/// [`values`]: struct.HashMap.html#method.values
-/// [`HashMap`]: struct.HashMap.html
-pub struct Values<'a, V: 'a> {
-    inner: Iter<'a, V>,
-}
+// /// An iterator over the values of a `HashMap`.
+// ///
+// /// This `struct` is created by the [`values`] method on [`HashMap`]. See its
+// /// documentation for more.
+// ///
+// /// [`values`]: struct.HashMap.html#method.values
+// /// [`HashMap`]: struct.HashMap.html
+// // pub struct Values<'a, V: 'a> {
+// //     inner: Iter<'a, V>,
+// // }
 
-// FIXME(#26925) Remove in favor of `#[derive(Clone)]`
-impl<'a, V> Clone for Values<'a, V> {
-    fn clone(&self) -> Values<'a, V> {
-        Values { inner: self.inner.clone() }
-    }
-}
+// // FIXME(#26925) Remove in favor of `#[derive(Clone)]`
+// impl<'a, V> Clone for Values<'a, V> {
+//     fn clone(&self) -> Values<'a, V> {
+//         Values { inner: self.inner.clone() }
+//     }
+// }
 
-impl<'a, V: Debug> fmt::Debug for Values<'a, V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.clone())
-            .finish()
-    }
-}
+// impl<'a, V: Debug> fmt::Debug for Values<'a, V> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_list()
+//             .entries(self.clone())
+//             .finish()
+//     }
+// }
 
 /// A mutable iterator over the values of a `HashMap`.
 ///
@@ -1363,9 +1316,11 @@ impl<'a, V: Debug> fmt::Debug for Values<'a, V> {
 ///
 /// [`values_mut`]: struct.HashMap.html#method.values_mut
 /// [`HashMap`]: struct.HashMap.html
-pub struct ValuesMut<'a, V: 'a> {
-    inner: IterMut<'a, V>,
-}
+// pub struct ValuesMut<'a, V: 'a> {
+//     inner: IterMut<'a, V>,
+// }
+
+// ---- TODO: Enable Iterators
 
 enum InternalEntry<V, M> {
     Occupied { elem: FullBucket<V, M> },
@@ -1402,13 +1357,14 @@ where
                     if disp >= DISPLACEMENT_THRESHOLD {
                         bucket.table_mut().set_tag(true);
                     }
-                    robin_hood(bucket, disp, hash, key.to_string(), value)
+                    robin_hood(bucket, disp, hash, key, value)
                 },
                 NoElem(mut bucket, disp) => {
                     if disp >= DISPLACEMENT_THRESHOLD {
                         bucket.table_mut().set_tag(true);
                     }
-                    bucket.put(hash, key, value)
+                    let mut text_position = add_and_get_text_position(key, &mut bucket.table_mut().raw_text_data );
+                    bucket.put(hash, &text_position, value)
                 },
             };
             b.into_mut_refs().1
@@ -1518,205 +1474,211 @@ enum VacantEntryState<V, M> {
     NoElem(EmptyBucket<V, M>, usize),
 }
 
-impl<'a, V, S> IntoIterator for &'a HashMap<V, S>
-    where S: BuildHasher
-{
-    type Item = (&'a String, &'a V);
-    type IntoIter = Iter<'a, V>;
 
-    fn into_iter(self) -> Iter<'a, V> {
-        self.iter()
-    }
-}
 
-impl<'a, V, S> IntoIterator for &'a mut HashMap<V, S>
-    where S: BuildHasher
-{
-    type Item = (&'a String, &'a mut V);
-    type IntoIter = IterMut<'a, V>;
+// TODO: ------ Enable Iterators
 
-    fn into_iter(self) -> IterMut<'a, V> {
-        self.iter_mut()
-    }
-}
 
-impl<V, S> IntoIterator for HashMap<V, S>
-    where S: BuildHasher
-{
-    type Item = (String, V);
-    type IntoIter = IntoIter<V>;
+// impl<'a, V, S> IntoIterator for &'a HashMap<V, S>
+//     where S: BuildHasher
+// {
+//     type Item = (&'a String, &'a V);
+//     type IntoIter = Iter<'a, V>;
 
-    /// Creates a consuming iterator, that is, one that moves each key-value
-    /// pair out of the map in arbitrary order. The map cannot be used after
-    /// calling this.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::collections::HashMap;
-    ///
-    /// let mut map = HashMap::new();
-    /// map.insert("a", 1);
-    /// map.insert("b", 2);
-    /// map.insert("c", 3);
-    ///
-    /// // Not possible with .iter()
-    /// let vec: Vec<(&str, i32)> = map.into_iter().collect();
-    /// ```
-    fn into_iter(self) -> IntoIter<V> {
-        IntoIter { inner: self.table.into_iter() }
-    }
-}
+//     fn into_iter(self) -> Iter<'a, V> {
+//         self.iter()
+//     }
+// }
 
-impl<'a, V> Iterator for Iter<'a, V> {
-    type Item = (&'a String, &'a V);
+// impl<'a, V, S> IntoIterator for &'a mut HashMap<V, S>
+//     where S: BuildHasher
+// {
+//     type Item = (&'a String, &'a mut V);
+//     type IntoIter = IterMut<'a, V>;
 
-    #[inline]
-    fn next(&mut self) -> Option<(&'a String, &'a V)> {
-        self.inner.next()
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<'a, V> ExactSizeIterator for Iter<'a, V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
+//     fn into_iter(self) -> IterMut<'a, V> {
+//         self.iter_mut()
+//     }
+// }
 
-impl<'a, V> FusedIterator for Iter<'a, V> {}
+// impl<V, S> IntoIterator for HashMap<V, S>
+//     where S: BuildHasher
+// {
+//     type Item = (String, V);
+//     type IntoIter = IntoIter<V>;
 
-impl<'a, V> Iterator for IterMut<'a, V> {
-    type Item = (&'a String, &'a mut V);
+//     /// Creates a consuming iterator, that is, one that moves each key-value
+//     /// pair out of the map in arbitrary order. The map cannot be used after
+//     /// calling this.
+//     ///
+//     /// # Examples
+//     ///
+//     /// ```
+//     /// use std::collections::HashMap;
+//     ///
+//     /// let mut map = HashMap::new();
+//     /// map.insert("a", 1);
+//     /// map.insert("b", 2);
+//     /// map.insert("c", 3);
+//     ///
+//     /// // Not possible with .iter()
+//     /// let vec: Vec<(&str, i32)> = map.into_iter().collect();
+//     /// ```
+//     fn into_iter(self) -> IntoIter<V> {
+//         IntoIter { inner: self.table.into_iter() }
+//     }
+// }
 
-    #[inline]
-    fn next(&mut self) -> Option<(&'a String, &'a mut V)> {
-        self.inner.next()
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<'a, V> ExactSizeIterator for IterMut<'a, V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-impl<'a, V> FusedIterator for IterMut<'a, V> {}
+// impl<'a, V> Iterator for Iter<'a, V> {
+//     type Item = (&'a String, &'a V);
 
-impl<'a, V> fmt::Debug for IterMut<'a, V>
-    where V: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.inner.iter())
-            .finish()
-    }
-}
+//     #[inline]
+//     fn next(&mut self) -> Option<(&'a String, &'a V)> {
+//         self.inner.next()
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         self.inner.size_hint()
+//     }
+// }
+// impl<'a, V> ExactSizeIterator for Iter<'a, V> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         self.inner.len()
+//     }
+// }
 
-impl<V> Iterator for IntoIter<V> {
-    type Item = (String, V);
+// impl<'a, V> FusedIterator for Iter<'a, V> {}
 
-    #[inline]
-    fn next(&mut self) -> Option<(String, V)> {
-        self.inner.next().map(|(_, k, v)| (k, v))
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<V> ExactSizeIterator for IntoIter<V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-impl<V> FusedIterator for IntoIter<V> {}
+// impl<'a, V> Iterator for IterMut<'a, V> {
+//     type Item = (&'a String, &'a mut V);
 
-impl<V: Debug> fmt::Debug for IntoIter<V> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.inner.iter())
-            .finish()
-    }
-}
+//     #[inline]
+//     fn next(&mut self) -> Option<(&'a String, &'a mut V)> {
+//         self.inner.next()
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         self.inner.size_hint()
+//     }
+// }
+// impl<'a, V> ExactSizeIterator for IterMut<'a, V> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         self.inner.len()
+//     }
+// }
+// impl<'a, V> FusedIterator for IterMut<'a, V> {}
 
-impl<'a, V> Iterator for Keys<'a, V> {
-    type Item = &'a String;
+// impl<'a, V> fmt::Debug for IterMut<'a, V>
+//     where V: fmt::Debug,
+// {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_list()
+//             .entries(self.inner.iter())
+//             .finish()
+//     }
+// }
 
-    #[inline]
-    fn next(&mut self) -> Option<(&'a String)> {
-        self.inner.next().map(|(k, _)| k)
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<'a, V> ExactSizeIterator for Keys<'a, V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-impl<'a, V> FusedIterator for Keys<'a, V> {}
+// impl<V> Iterator for IntoIter<V> {
+//     type Item = (String, V);
 
-impl<'a, V> Iterator for Values<'a, V> {
-    type Item = &'a V;
+//     #[inline]
+//     fn next(&mut self) -> Option<(String, V)> {
+//         self.inner.next().map(|(_, k, v)| (k, v))
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         self.inner.size_hint()
+//     }
+// }
+// impl<V> ExactSizeIterator for IntoIter<V> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         self.inner.len()
+//     }
+// }
+// impl<V> FusedIterator for IntoIter<V> {}
 
-    #[inline]
-    fn next(&mut self) -> Option<(&'a V)> {
-        self.inner.next().map(|(_, v)| v)
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<'a, V> ExactSizeIterator for Values<'a, V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-impl<'a, V> FusedIterator for Values<'a, V> {}
+// impl<V: Debug> fmt::Debug for IntoIter<V> {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_list()
+//             .entries(self.inner.iter())
+//             .finish()
+//     }
+// }
 
-impl<'a, V> Iterator for ValuesMut<'a, V> {
-    type Item = &'a mut V;
+// impl<'a, V> Iterator for Keys<'a, V> {
+//     type Item = &'a String;
 
-    #[inline]
-    fn next(&mut self) -> Option<(&'a mut V)> {
-        self.inner.next().map(|(_, v)| v)
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<'a, V> ExactSizeIterator for ValuesMut<'a, V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-impl<'a, V> FusedIterator for ValuesMut<'a, V> {}
+//     #[inline]
+//     fn next(&mut self) -> Option<(&'a String)> {
+//         self.inner.next().map(|(k, _)| k)
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         self.inner.size_hint()
+//     }
+// }
+// impl<'a, V> ExactSizeIterator for Keys<'a, V> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         self.inner.len()
+//     }
+// }
+// impl<'a, V> FusedIterator for Keys<'a, V> {}
 
-impl<'a, V> fmt::Debug for ValuesMut<'a, V>
-    where V: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.inner.inner.iter())
-            .finish()
-    }
-}
+// impl<'a, V> Iterator for Values<'a, V> {
+//     type Item = &'a V;
 
+//     #[inline]
+//     fn next(&mut self) -> Option<(&'a V)> {
+//         self.inner.next().map(|(_, v)| v)
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         self.inner.size_hint()
+//     }
+// }
+// impl<'a, V> ExactSizeIterator for Values<'a, V> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         self.inner.len()
+//     }
+// }
+// impl<'a, V> FusedIterator for Values<'a, V> {}
+
+// impl<'a, V> Iterator for ValuesMut<'a, V> {
+//     type Item = &'a mut V;
+
+//     #[inline]
+//     fn next(&mut self) -> Option<(&'a mut V)> {
+//         self.inner.next().map(|(_, v)| v)
+//     }
+//     #[inline]
+//     fn size_hint(&self) -> (usize, Option<usize>) {
+//         self.inner.size_hint()
+//     }
+// }
+// impl<'a, V> ExactSizeIterator for ValuesMut<'a, V> {
+//     #[inline]
+//     fn len(&self) -> usize {
+//         self.inner.len()
+//     }
+// }
+// impl<'a, V> FusedIterator for ValuesMut<'a, V> {}
+
+// impl<'a, V> fmt::Debug for ValuesMut<'a, V>
+//     where V: fmt::Debug,
+// {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         f.debug_list()
+//             .entries(self.inner.inner.iter())
+//             .finish()
+//     }
+// }
+
+// TODO: ------ Enable Iterators
 
 // impl<'a, V> Entry<'a, V> {
 //     pub fn or_insert(self, default: V) -> &'a mut V {
@@ -1803,6 +1765,7 @@ impl<'a, V> fmt::Debug for ValuesMut<'a, V>
 
 // }
 
+//TODO key shouldn't be store here as String
 impl<'a, V: 'a> VacantEntry<'a, V> {
     pub fn key(&self) -> &String {
         &self.key
@@ -1816,13 +1779,14 @@ impl<'a, V: 'a> VacantEntry<'a, V> {
                 if disp >= DISPLACEMENT_THRESHOLD {
                     bucket.table_mut().set_tag(true);
                 }
-                robin_hood(bucket, disp, self.hash, self.key, value)
+                robin_hood(bucket, disp, self.hash, &self.key, value)
             },
             NoElem(mut bucket, disp) => {
                 if disp >= DISPLACEMENT_THRESHOLD {
                     bucket.table_mut().set_tag(true);
                 }
-                bucket.put(self.hash, &self.key, value)
+                let mut text_position = add_and_get_text_position(&self.key, &mut bucket.table_mut().raw_text_data );
+                bucket.put(self.hash, &text_position, value)
             },
         };
         b.into_mut_refs().1
