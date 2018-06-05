@@ -1192,15 +1192,14 @@ impl<V, S> Eq for HashMap<V, S>
 {
 }
 
-//TODO Enable
-// impl<V, S> Debug for HashMap<V, S>
-//     where V: Debug,
-//           S: BuildHasher
-// {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.debug_map().entries(self.iter()).finish()
-//     }
-// }
+impl<V, S> Debug for HashMap<V, S>
+    where V: Debug,
+          S: BuildHasher
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
 
 impl<V, S> Default for HashMap<V, S>
     where S: BuildHasher + Default
@@ -1245,13 +1244,13 @@ impl<'a, V> Clone for Iter<'a, V> {
     }
 }
 
-// impl<'a, V: Debug> fmt::Debug for Iter<'a, V> {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.debug_list()
-//             .entries(self.clone())
-//             .finish()
-//     }
-// }
+impl<'a, V: Debug> fmt::Debug for Iter<'a, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.clone())
+            .finish()
+    }
+}
 
 /// A mutable iterator over the entries of a `HashMap`.
 ///
@@ -1287,19 +1286,19 @@ pub struct Keys<'a, V: 'a> {
 }
 
 //// FIXME(#26925) Remove in favor of `#[derive(Clone)]`
-// impl<'a, V> Clone for Keys<'a, V> {
-//     fn clone(&self) -> Keys<'a, V> {
-//         Keys { inner: self.inner.clone() }
-//     }
-// }
+impl<'a, V> Clone for Keys<'a, V> {
+    fn clone(&self) -> Keys<'a, V> {
+        Keys { inner: self.inner.clone() }
+    }
+}
 
-// impl<'a, V> fmt::Debug for Keys<'a, V> {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.debug_list()
-//             .entries(self.clone())
-//             .finish()
-//     }
-// }
+impl<'a, V> fmt::Debug for Keys<'a, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.clone())
+            .finish()
+    }
+}
 
 /// An iterator over the values of a `HashMap`.
 ///
@@ -1319,13 +1318,13 @@ impl<'a, V> Clone for Values<'a, V> {
     }
 }
 
-// impl<'a, V: Debug> fmt::Debug for Values<'a, V> {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.debug_list()
-//             .entries(self.clone())
-//             .finish()
-//     }
-// }
+impl<'a, V: Debug> fmt::Debug for Values<'a, V> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.clone())
+            .finish()
+    }
+}
 
 /// A mutable iterator over the values of a `HashMap`.
 ///
@@ -1684,15 +1683,15 @@ impl<'a, V> ExactSizeIterator for ValuesMut<'a, V> {
 }
 impl<'a, V> FusedIterator for ValuesMut<'a, V> {}
 
-// impl<'a, V> fmt::Debug for ValuesMut<'a, V>
-//     where V: fmt::Debug,
-// {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         f.debug_list()
-//             .entries(self.inner.inner.iter())
-//             .finish()
-//     }
-// }
+impl<'a, V> fmt::Debug for ValuesMut<'a, V>
+    where V: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.inner.inner.iter())
+            .finish()
+    }
+}
 
 
 // impl<'a, V> Entry<'a, V> {
