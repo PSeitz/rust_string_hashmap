@@ -7,9 +7,9 @@ use std::io::prelude::*;
 #[macro_use]
 extern crate measure_time;
 fn main() {
-    let mut file = File::open("1342-0.txt").unwrap();
     let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
+    // File::open("1342-0.txt").unwrap().read_to_string(&mut contents).unwrap();
+    File::open("big.txt").unwrap().read_to_string(&mut contents).unwrap();
     test_yoshi(&contents);
     test_fnv(&contents);
     test_stacker(&contents);
@@ -113,10 +113,9 @@ fn test_custom_entry(text: &str) -> bool {
     let mut mappo:term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
     // let mut all_the_bytes:Vec<u8> = Vec::with_capacity(5_000_000);
     print_time!("term_hashmap entry api");
-    // mappo.reserve(100_000);
+    mappo.reserve(100_000);
     for line in text.split_whitespace() {
 
-        
         let stat = mappo.get_or_insert(line, ||0);
         *stat += 1;
         // let stat = mappo.entry(line).or_insert(0);
@@ -149,7 +148,7 @@ use term_hashmap::stacker::TermHashMap;
 
 fn test_stacker(text: &str) -> u32  {
     print_time!("test_stacker");
-    let heap_size_in_bytes_per_thread  = 2_550_000;
+    let heap_size_in_bytes_per_thread  = 15_550_000;
     let (heap_size, table_size) = split_memory(heap_size_in_bytes_per_thread);
     let heap = Heap::with_capacity(heap_size);
     let mut mappo: TermHashMap = TermHashMap::new(table_size, &heap);

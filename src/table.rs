@@ -37,9 +37,7 @@ const EMPTY: u32 = 1;
 /// null and the tag functions shouldn't be used.
 struct TaggedHashUintPtr(Unique<HashUint>);
 
-// type BucketType = String;
 type BucketType = (u32, u32);
-// type BucketType = (u32, u32);
 
 impl TaggedHashUintPtr {
     #[inline]
@@ -468,11 +466,18 @@ impl<V, M: Deref<Target = RawTable<V>>> FullBucket<V, M> {
         unsafe {
             let pair_ptr = self.raw.pair();
             let text_offsets = (*pair_ptr).0;
-            let slice = &self.table.raw_text_data[text_offsets.0 as usize .. text_offsets.0 as usize + text_offsets.1 as usize];
-            (str::from_utf8_unchecked(&slice), &(*pair_ptr).1)
+            // let slice = &self.table.raw_text_data[text_offsets.0 as usize .. text_offsets.0 as usize + text_offsets.1 as usize];
+            (get_text(&self.table.raw_text_data, text_offsets.0 as usize, text_offsets.1 as usize), &(*pair_ptr).1)
             // (&(*pair_ptr).0, &(*pair_ptr).1)
         }
     }
+}
+
+
+#[inline]
+pub fn get_text<'a>(bytes:&'a [u8], start: usize, length:usize) -> &'a str {
+    let slice = &bytes[start .. start + length];
+    unsafe {str::from_utf8_unchecked(&slice)}
 }
 
 // We take a mutable reference to the table instead of accepting anything that
@@ -602,7 +607,7 @@ impl<V> RawTable<V> {
         Ok(RawTable {
             capacity_mask: capacity.wrapping_sub(1),
             size: 0,
-            raw_text_data: vec![], // TODO capacity
+            raw_text_data: Vec::with_capacity(capacity * 10),
             hashes: TaggedHashUintPtr::new(buffer.cast().as_ptr()),
             marker: marker::PhantomData,
         })
@@ -677,33 +682,33 @@ impl<V> RawTable<V> {
         }
     }
 
-// TODO :enable Iterators
-    // pub fn iter(&self) -> Iter<V> {
-    //     Iter {
-    //         iter: self.raw_buckets(),
-    //     }
-    // }
+    pub fn iter(&self) -> Iter<V> {
+        Iter {
+            iter: self.raw_buckets(),
+            raw_text: &self.raw_text_data
+        }
+    }
 
-    // pub fn iter_mut(&mut self) -> IterMut<V> {
-    //     IterMut {
-    //         iter: self.raw_buckets(),
-    //         _marker: marker::PhantomData,
-    //     }
-    // }
+    pub fn iter_mut(&mut self) -> IterMut<V> {
+        IterMut {
+            iter: self.raw_buckets(),
+            raw_text: &self.raw_text_data,
+            _marker: marker::PhantomData,
+        }
+    }
 
-    // pub fn into_iter(self) -> IntoIter<V> {
-    //     let RawBuckets { raw, elems_left, .. } = self.raw_buckets();
-    //     // Replace the marker regardless of lifetime bounds on parameters.
-    //     IntoIter {
-    //         iter: RawBuckets {
-    //             raw,
-    //             elems_left,
-    //             marker: marker::PhantomData,
-    //         },
-    //         table: self,
-    //     }
-    // }
-//TODO :enable Iterators
+    pub fn into_iter(self) -> IntoIter<V> {
+        let RawBuckets { raw, elems_left, .. } = self.raw_buckets();
+        // Replace the marker regardless of lifetime bounds on parameters.
+        IntoIter {
+            iter: RawBuckets {
+                raw,
+                elems_left,
+                marker: marker::PhantomData,
+            },
+            table: self,
+        }
+    }
 
     /// Drops buckets in reverse order. It leaves the table in an inconsistent
     /// state and should only be used for dropping the table's remaining
@@ -791,127 +796,136 @@ impl<'a, V> ExactSizeIterator for RawBuckets<'a, V> {
     }
 }
 
-// TODO enable Iterators
 
-/// Iterator over shared references to entries in a table.
-// pub struct Iter<'a, V: 'a> {
-//     iter: RawBuckets<'a, V>,
-// }
+// Iterator over shared references to entries in a table.
+pub struct Iter<'a, V: 'a> {
+    iter: RawBuckets<'a, V>,
+    raw_text: &'a[u8],
+}
 
-// unsafe impl<'a, V: Sync> Sync for Iter<'a, V> {}
-// unsafe impl<'a, V: Sync> Send for Iter<'a, V> {}
+unsafe impl<'a, V: Sync> Sync for Iter<'a, V> {}
+unsafe impl<'a, V: Sync> Send for Iter<'a, V> {}
 
-// FIXME(#26925) Remove in favor of `#[derive(Clone)]`
-// impl<'a, V> Clone for Iter<'a, V> {
-//     fn clone(&self) -> Iter<'a, V> {
-//         Iter {
-//             iter: self.iter.clone(),
-//         }
-//     }
-// }
+//FIXME(#26925) Remove in favor of `#[derive(Clone)]`
+impl<'a, V> Clone for Iter<'a, V> {
+    fn clone(&self) -> Iter<'a, V> {
+        Iter {
+            iter: self.iter.clone(),
+            raw_text: &self.raw_text,
+        }
+    }
+}
 
-/// Iterator over mutable references to entries in a table.
-// pub struct IterMut<'a, V: 'a> {
-//     iter: RawBuckets<'a, V>,
-//     // To ensure invariance with respect to V
-//     _marker: marker::PhantomData<&'a mut V>,
-// }
+// Iterator over mutable references to entries in a table.
+pub struct IterMut<'a, V: 'a> {
+    iter: RawBuckets<'a, V>,
+    raw_text: &'a[u8],
+    // To ensure invariance with respect to V
+    _marker: marker::PhantomData<&'a mut V>,
+}
 
-// unsafe impl<'a, V: Sync> Sync for IterMut<'a, V> {}
-// // Both K: Sync and K: Send are correct for IterMut's Send impl,
-// // but Send is the more useful bound
-// unsafe impl<'a, V: Send> Send for IterMut<'a, V> {}
+unsafe impl<'a, V: Sync> Sync for IterMut<'a, V> {}
+// Both K: Sync and K: Send are correct for IterMut's Send impl,
+// but Send is the more useful bound
+unsafe impl<'a, V: Send> Send for IterMut<'a, V> {}
 
-// impl<'a, V: 'a> IterMut<'a, V> {
-//     pub fn iter(&self) -> Iter<V> {
-//         Iter {
-//             iter: self.iter.clone(),
-//         }
-//     }
-// }
+impl<'a, V: 'a> IterMut<'a, V> {
+    pub fn iter(&self) -> Iter<V> {
+        Iter {
+            iter: self.iter.clone(),
+            raw_text: &self.raw_text,
+        }
+    }
+}
 
-/// Iterator over the entries in a table, consuming the table.
-// pub struct IntoIter<V> {
-//     table: RawTable<V>,
-//     iter: RawBuckets<'static, V>,
-// }
+// Iterator over the entries in a table, consuming the table.
+pub struct IntoIter<V> {
+    table: RawTable<V>,
+    iter: RawBuckets<'static, V>,
+}
 
-// unsafe impl<V: Sync> Sync for IntoIter<V> {}
-// unsafe impl<V: Send> Send for IntoIter<V> {}
+unsafe impl<V: Sync> Sync for IntoIter<V> {}
+unsafe impl<V: Send> Send for IntoIter<V> {}
 
-// impl<V> IntoIter<V> {
-//     pub fn iter(&self) -> Iter<V> {
-//         Iter {
-//             iter: self.iter.clone(),
-//         }
-//     }
-// }
+impl<V> IntoIter<V> {
+    pub fn iter(&self) -> Iter<V> {
+        Iter {
+            iter: self.iter.clone(),
+            raw_text: &self.table.raw_text_data,
+        }
+    }
+}
 
-// impl<'a, V> Iterator for Iter<'a, V> {
-//     type Item = (&'a BucketType, &'a V);
+impl<'a, V> Iterator for Iter<'a, V> {
+    type Item = (&'a str, &'a V);
 
-//     fn next(&mut self) -> Option<(&'a BucketType, &'a V)> {
-//         self.iter.next().map(|raw| unsafe {
-//             let pair_ptr = raw.pair();
-//             (&(*pair_ptr).0, &(*pair_ptr).1)
-//         })
-//     }
+    fn next(&mut self) -> Option<(&'a str, &'a V)> {
+        self.iter.next().map(|raw| unsafe {
+            let pair_ptr = raw.pair();
+            let text_offsets = (*pair_ptr).0;
+            // get_text(&self.raw_text, text_offsets.0 as usize, text_offsets.1 as usize);
+            // (&(*pair_ptr).0, &(*pair_ptr).1)
+            (get_text(&self.raw_text, text_offsets.0 as usize, text_offsets.1 as usize), &(*pair_ptr).1)
+        })
+    }
 
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         self.iter.size_hint()
-//     }
-// }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
 
-// impl<'a, V> ExactSizeIterator for Iter<'a, V> {
-//     fn len(&self) -> usize {
-//         self.iter.len()
-//     }
-// }
+impl<'a, V> ExactSizeIterator for Iter<'a, V> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
 
-// impl<'a, V> Iterator for IterMut<'a, V> {
-//     type Item = (&'a BucketType, &'a mut V);
+impl<'a, V> Iterator for IterMut<'a, V> {
+    type Item = (&'a str, &'a mut V);
 
-//     fn next(&mut self) -> Option<(&'a BucketType, &'a mut V)> {
-//         self.iter.next().map(|raw| unsafe {
-//             let pair_ptr = raw.pair();
-//             (&(*pair_ptr).0, &mut (*pair_ptr).1)
-//         })
-//     }
+    fn next(&mut self) -> Option<(&'a str, &'a mut V)> {
+        self.iter.next().map(|raw| unsafe {
+            let pair_ptr = raw.pair();
+            // (&(*pair_ptr).0, &mut (*pair_ptr).1)
+            let text_offsets = (*pair_ptr).0;
+            (get_text(&self.raw_text, text_offsets.0 as usize, text_offsets.1 as usize),  &mut (*pair_ptr).1)
+        })
+    }
 
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         self.iter.size_hint()
-//     }
-// }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
 
-// impl<'a, V> ExactSizeIterator for IterMut<'a, V> {
-//     fn len(&self) -> usize {
-//         self.iter.len()
-//     }
-// }
+impl<'a, V> ExactSizeIterator for IterMut<'a, V> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
 
-// impl<V> Iterator for IntoIter<V> {
-//     type Item = (SafeHash, BucketType, V);
+impl<V> Iterator for IntoIter<V> {
+    type Item = (SafeHash, BucketType, V);
 
-//     fn next(&mut self) -> Option<(SafeHash, BucketType, V)> {
-//         self.iter.next().map(|raw| {
-//             self.table.size -= 1;
-//             unsafe {
-//                 let (k, v) = ptr::read(raw.pair());
-//                 (SafeHash { hash: *raw.hash() }, k, v)
-//             }
-//         })
-//     }
+    fn next(&mut self) -> Option<(SafeHash, BucketType, V)> {
+        self.iter.next().map(|raw| {
+            self.table.size -= 1;
+            unsafe {
+                let (k, v) = ptr::read(raw.pair());
+                (SafeHash { hash: *raw.hash() }, k, v)
+            }
+        })
+    }
 
-//     fn size_hint(&self) -> (usize, Option<usize>) {
-//         self.iter.size_hint()
-//     }
-// }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
 
-// impl<V> ExactSizeIterator for IntoIter<V> {
-//     fn len(&self) -> usize {
-//         self.iter().len()
-//     }
-// }
+impl<V> ExactSizeIterator for IntoIter<V> {
+    fn len(&self) -> usize {
+        self.iter().len()
+    }
+}
 
 
 impl<V: Clone> Clone for RawTable<V> {
