@@ -1044,7 +1044,6 @@ impl<V, S> HashMap<V, S>
         search_hashed_nonempty(&self.table, hash, |k| q.eq(k))
             .into_occupied_bucket().is_some()
 
-        // self.search(k).is_some()
     }
 
     /// Returns true if the map contains a value for the specified key.
@@ -1139,6 +1138,10 @@ impl<V, S> HashMap<V, S>
         let hash = self.make_hash(k);
         self.reserve(1);
         self.insert_hashed_nocheck(hash, k, v);
+    }
+
+    pub fn memory_footprint(&self) -> usize {
+        self.table.memory_footprint()
     }
 
     /// Inserts a key-value pair into the map.

@@ -668,6 +668,15 @@ impl<V> RawTable<V> {
         self.capacity_mask.wrapping_add(1)
     }
 
+    /// The hashtable's memory_footprint
+    pub fn memory_footprint(&self) -> usize {
+        let cap = self.capacity();
+        cap * size_of::<u32>() + //Hashes
+        cap * size_of::<(BucketType, V)>() + // BucketType = Pointer To raw text, Value
+        self.raw_text_data.len() + 24 // Raw text data
+
+    }
+
     /// The number of elements ever `put` in the hashtable, minus the number
     /// of elements ever `take`n.
     pub fn size(&self) -> usize {
