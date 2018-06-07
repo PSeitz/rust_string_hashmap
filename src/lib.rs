@@ -34,7 +34,9 @@ extern crate byteorder;
 pub mod hasher;
 mod table;
 pub mod stacker;
+mod vint;
 
+use vint::*;
 use hasher::FnvYoshiBuildHasher;
 
 // use self::Entry::*;
@@ -499,9 +501,10 @@ fn search_hashed_nonempty<V, M, F>(table: M, hash: SafeHash, mut is_match: F)
     }
 }
 
-
-fn add_and_get_text_position(key: &str, bytes: &mut Vec<u8>) -> (u32, u32) {
-    let text_position = (bytes.len() as u32, key.as_bytes().len() as u32);
+fn add_and_get_text_position(key: &str, bytes: &mut Vec<u8>) -> u32 {
+    let (slice, len) = encode_num(key.len() as u32);
+    let text_position = bytes.len() as u32;
+    bytes.extend_from_slice(&slice[..len as usize]);
     bytes.extend(key.as_bytes());
     text_position
 }
@@ -606,7 +609,7 @@ impl<V, S> HashMap<V, S>
 
     // The caller should ensure that invariants by Robin Hood Hashing hold
     // and that there's space in the underlying table.
-    fn insert_hashed_ordered_text_pos(&mut self, hash: SafeHash, text_position: (u32, u32), v: V) {
+    fn insert_hashed_ordered_text_pos(&mut self, hash: SafeHash, text_position: u32, v: V) {
         let mut buckets = Bucket::new(&mut self.table, hash);
         let start_index = buckets.index();
 

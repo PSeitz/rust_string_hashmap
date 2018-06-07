@@ -10,29 +10,29 @@ fn main() {
     let mut contents = String::new();
     // File::open("1342-0.txt").unwrap().read_to_string(&mut contents).unwrap();
     File::open("big.txt").unwrap().read_to_string(&mut contents).unwrap();
-    test_yoshi(&contents);
-    test_fnv(&contents);
-    test_stacker(&contents);
-    test_custom(&contents);
+    // test_yoshi(&contents);
+    // test_fnv(&contents);
+    // test_stacker(&contents);
+    // test_custom(&contents);
     test_custom_entry(&contents);
-    test_yoshi(&contents);
-    test_fnv(&contents);
-    // test_normal(&contents);
-    test_stacker(&contents);
-    test_custom(&contents);
-    test_custom_entry(&contents);
-    test_yoshi(&contents);
-    test_fnv(&contents);
-    // test_normal(&contents);
-    test_stacker(&contents);
-    test_custom(&contents);
-    test_custom_entry(&contents);
-    test_yoshi(&contents);
-    test_fnv(&contents);
-    // test_normal(&contents);
-    test_stacker(&contents);
-    test_custom(&contents);
-    test_custom_entry(&contents);
+    // test_yoshi(&contents);
+    // test_fnv(&contents);
+    // // test_normal(&contents);
+    // test_stacker(&contents);
+    // test_custom(&contents);
+    // test_custom_entry(&contents);
+    // test_yoshi(&contents);
+    // test_fnv(&contents);
+    // // test_normal(&contents);
+    // test_stacker(&contents);
+    // test_custom(&contents);
+    // test_custom_entry(&contents);
+    // test_yoshi(&contents);
+    // test_fnv(&contents);
+    // // test_normal(&contents);
+    // test_stacker(&contents);
+    // test_custom(&contents);
+    // test_custom_entry(&contents);
 
     // PROFILER.lock().unwrap().start("./my-prof.profile2").unwrap();
     // for _ in 0..1000 {
@@ -128,8 +128,8 @@ fn test_custom_entry(text: &str) -> bool {
         // }
         // all_the_bytes.extend(line.as_bytes());
     }
+    println!("{:?}", mappo.memory_footprint());
     mappo.contains_key("test")
-    // println!("{:?}", mappo.len());
 }
 
 fn test_set(text: &str) {

@@ -14,7 +14,7 @@ use std::str;
 use std::mem::{size_of, needs_drop};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{self, Unique, NonNull};
-
+use vint::*;
 use self::BucketState::*;
 
 /// Integer type used for stored hash values.
@@ -37,7 +37,7 @@ const EMPTY: u32 = 1;
 /// null and the tag functions shouldn't be used.
 struct TaggedHashUintPtr(Unique<HashUint>);
 
-type BucketType = (u32, u32);
+type BucketType = u32;
 
 impl TaggedHashUintPtr {
     #[inline]
@@ -466,8 +466,8 @@ impl<V, M: Deref<Target = RawTable<V>>> FullBucket<V, M> {
         unsafe {
             let pair_ptr = self.raw.pair();
             let text_offsets = (*pair_ptr).0;
-            // let slice = &self.table.raw_text_data[text_offsets.0 as usize .. text_offsets.0 as usize + text_offsets.1 as usize];
-            (get_text(&self.table.raw_text_data, text_offsets.0 as usize, text_offsets.1 as usize), &(*pair_ptr).1)
+            // let slice = &self.table.raw_text_data[text_offsets as usize .. text_offsets as usize + text_offsets.1 as usize];
+            (get_text(&self.table.raw_text_data, text_offsets as usize), &(*pair_ptr).1)
             // (&(*pair_ptr).0, &(*pair_ptr).1)
         }
     }
@@ -475,8 +475,10 @@ impl<V, M: Deref<Target = RawTable<V>>> FullBucket<V, M> {
 
 
 #[inline]
-pub fn get_text<'a>(bytes:&'a [u8], start: usize, length:usize) -> &'a str {
-    let slice = &bytes[start .. start + length];
+pub fn get_text<'a>(bytes:&'a [u8], start: usize) -> &'a str {
+    let mut iter = VintArrayIterator::new(&bytes[start..]);
+    let length = iter.next().unwrap();
+    let slice = &bytes[start + iter.pos .. start + iter.pos + length as usize];
     unsafe {str::from_utf8_unchecked(&slice)}
 }
 
@@ -872,9 +874,9 @@ impl<'a, V> Iterator for Iter<'a, V> {
         self.iter.next().map(|raw| unsafe {
             let pair_ptr = raw.pair();
             let text_offsets = (*pair_ptr).0;
-            // get_text(&self.raw_text, text_offsets.0 as usize, text_offsets.1 as usize);
+            // get_text(&self.raw_text, text_offsets as usize);
             // (&(*pair_ptr).0, &(*pair_ptr).1)
-            (get_text(&self.raw_text, text_offsets.0 as usize, text_offsets.1 as usize), &(*pair_ptr).1)
+            (get_text(&self.raw_text, text_offsets as usize), &(*pair_ptr).1)
         })
     }
 
@@ -897,7 +899,7 @@ impl<'a, V> Iterator for IterMut<'a, V> {
             let pair_ptr = raw.pair();
             // (&(*pair_ptr).0, &mut (*pair_ptr).1)
             let text_offsets = (*pair_ptr).0;
-            (get_text(&self.raw_text, text_offsets.0 as usize, text_offsets.1 as usize),  &mut (*pair_ptr).1)
+            (get_text(&self.raw_text, text_offsets as usize),  &mut (*pair_ptr).1)
         })
     }
 
