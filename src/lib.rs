@@ -41,7 +41,7 @@ use hasher::FnvYoshiBuildHasher;
 
 // use self::Entry::*;
 use self::VacantEntryState::*;
-
+use std::str;
 use std::alloc::{CollectionAllocErr};
 use std::cmp::max;
 use std::fmt::{self, Debug};
@@ -889,11 +889,12 @@ impl<V, S> HashMap<V, S>
         let entry = search_hashed(&mut self.table, hash, |key| key == k);
         insert_if_empty_and_get_mut(entry, k, constructor)
     }
-    /// An iterator visiting all keys in arbitrary order.
-    /// The iterator element type is `&'a K`.
+
+    /// An iterator visiting all keys in insertion order.
+    /// The iterator element type is `&'a str`.
     ///
-    pub fn keys(&self) -> Keys<V> {
-        Keys { inner: self.iter() }
+    pub fn keys(&self) -> RawKeys {
+        RawKeys { inner: &self.table.raw_text_data, curr_pos:0, curr_el:0, total_el: self.len() as u32 }
     }
 
     /// An iterator visiting all values in arbitrary order.
@@ -1280,6 +1281,7 @@ pub struct IterMut<'a, V: 'a> {
 //     pub inner: table::IntoIter<V>,
 // }
 
+
 /// An iterator over the keys of a `HashMap`.
 ///
 /// This `struct` is created by the [`keys`] method on [`HashMap`]. See its
@@ -1287,24 +1289,58 @@ pub struct IterMut<'a, V: 'a> {
 ///
 /// [`keys`]: struct.HashMap.html#method.keys
 /// [`HashMap`]: struct.HashMap.html
-pub struct Keys<'a, V: 'a> {
-    inner: Iter<'a, V>,
+#[derive(Clone)]
+pub struct RawKeys<'a> {
+    inner: &'a[u8],
+    curr_pos: u32,
+    curr_el: u32,
+    total_el: u32,
 }
 
-//// FIXME(#26925) Remove in favor of `#[derive(Clone)]`
-impl<'a, V> Clone for Keys<'a, V> {
-    fn clone(&self) -> Keys<'a, V> {
-        Keys { inner: self.inner.clone() }
+#[inline]
+pub fn get_text_and_move_position<'a>(bytes:&'a [u8], start: &mut u32) -> &'a str {
+    let mut iter = VintArrayIterator::new(&bytes[*start as usize..]);
+    let length = iter.next().unwrap();
+    *start += iter.pos as u32;
+    let slice = &bytes[*start as usize .. *start as usize  + length as usize];
+    *start += length as u32;
+    unsafe {str::from_utf8_unchecked(&slice)}
+}
+
+impl<'a> Iterator for RawKeys<'a> {
+    type Item = &'a str;
+
+    #[inline]
+    fn next(&mut self) -> Option<(&'a str)> {
+        if self.curr_pos >= self.inner.len() as u32 {
+            None
+        }else{
+            self.curr_el+=1;
+            Some(get_text_and_move_position(self.inner, &mut self.curr_pos))
+        }
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        ((self.total_el-self.curr_el) as usize, Some((self.total_el-self.curr_el) as usize))
     }
 }
 
-impl<'a, V> fmt::Debug for Keys<'a, V> {
+impl<'a> ExactSizeIterator for RawKeys<'a> {
+    #[inline]
+    fn len(&self) -> usize {
+        (self.total_el-self.curr_el) as usize
+    }
+}
+
+impl<'a> fmt::Debug for RawKeys<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_list()
             .entries(self.clone())
             .finish()
     }
 }
+
+impl<'a> FusedIterator for RawKeys<'a> {}
 
 /// An iterator over the values of a `HashMap`.
 ///
@@ -1629,25 +1665,6 @@ impl<'a, V> fmt::Debug for IterMut<'a, V>
 //     }
 // }
 
-impl<'a, V> Iterator for Keys<'a, V> {
-    type Item = &'a str;
-
-    #[inline]
-    fn next(&mut self) -> Option<(&'a str)> {
-        self.inner.next().map(|(k, _)| k)
-    }
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-impl<'a, V> ExactSizeIterator for Keys<'a, V> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-impl<'a, V> FusedIterator for Keys<'a, V> {}
 
 impl<'a, V> Iterator for Values<'a, V> {
     type Item = &'a V;
@@ -1861,7 +1878,7 @@ mod test_map {
     use std::usize;
 
     #[test]
-    fn insert_and_get_get() {
+    fn insert_and_get_all_keys() {
         let mut map: HashMap<u32> = HashMap::new();
 
         map.insert("3", 4);
@@ -1871,8 +1888,8 @@ mod test_map {
         assert_eq!(map.get("2"), None);
 
         let mut keys_iter = map.keys();
-        assert_eq!(keys_iter.next(), Some("1"));
         assert_eq!(keys_iter.next(), Some("3"));
+        assert_eq!(keys_iter.next(), Some("1"));
         assert_eq!(keys_iter.next(), None);
 
     }
