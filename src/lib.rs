@@ -1152,6 +1152,14 @@ impl<V, S> HashMap<V, S>
         self.table.raw_text_data.len()
     }
 
+    ///
+    /// Shrinks to fit the internal vector for the raw text data
+    /// Doesn't affect the hashmap
+    ///
+    pub fn shrink_to_fit(&mut self) {
+        self.table.raw_text_data.shrink_to_fit();
+    }
+
     /// Inserts a key-value pair into the map.
     ///
     /// If the map did not have this key present, [`None`] is returned.
