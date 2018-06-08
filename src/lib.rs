@@ -1148,6 +1148,10 @@ impl<V, S> HashMap<V, S>
         self.table.memory_footprint()
     }
 
+    pub fn total_size_of_text_data(&self) -> usize {
+        self.table.raw_text_data.len()
+    }
+
     /// Inserts a key-value pair into the map.
     ///
     /// If the map did not have this key present, [`None`] is returned.
