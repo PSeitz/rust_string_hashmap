@@ -986,7 +986,7 @@ unsafe impl<#[may_dangle] V> Drop for RawTable<V> {
 
         let (layout, _) = calculate_layout::<V>(self.capacity()).unwrap();
         unsafe {
-            Global.dealloc(NonNull::new_unchecked(self.hashes.ptr()).as_opaque(), layout);
+            Global.dealloc(NonNull::new_unchecked(self.hashes.ptr()).cast(), layout);
             // Remember how everything was allocated out of one buffer
             // during initialization? We only need one call to free here.
         }
