@@ -36,7 +36,8 @@ mod table;
 pub mod stacker;
 mod vint;
 
-use vint::*;
+use vint::encode_num;
+use vint::VintArrayIterator;
 use hasher::FnvYoshiBuildHasher;
 
 // use self::Entry::*;
@@ -1294,6 +1295,71 @@ pub struct IterMut<'a, V: 'a> {
 // }
 
 
+/// An iterator over the positions of the keys in the raw text cache.
+///
+/// This `struct` is created by the [`key_positions`] method on [`HashMap`]. See its
+/// documentation for more.
+///
+/// [`key_positions`]: struct.HashMap.html#method.key_positions
+/// [`HashMap`]: struct.HashMap.html
+#[derive(Clone)]
+pub struct RawKeyPositions<'a> {
+    inner: &'a[u8],
+    curr_pos: u32,
+    curr_el: u32,
+    total_el: u32,
+}
+
+
+impl<'a> Iterator for RawKeyPositions<'a> {
+    type Item = u32;
+
+    #[inline]
+    fn next(&mut self) -> Option<(u32)> {
+        if self.curr_pos >= self.inner.len() as u32 {
+            None
+        }else{
+            self.curr_el+=1;
+            let current = self.curr_pos;
+            get_text_and_move_position(self.inner, &mut self.curr_pos);
+            Some(current)
+        }
+    }
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        ((self.total_el-self.curr_el) as usize, Some((self.total_el-self.curr_el) as usize))
+    }
+}
+
+impl<'a> ExactSizeIterator for RawKeyPositions<'a> {
+    #[inline]
+    fn len(&self) -> usize {
+        (self.total_el-self.curr_el) as usize
+    }
+}
+
+impl<'a> fmt::Debug for RawKeyPositions<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_list()
+            .entries(self.clone())
+            .finish()
+    }
+}
+
+impl<'a> FusedIterator for RawKeyPositions<'a> {}
+
+
+#[inline]
+pub fn get_text_and_move_position<'a>(bytes:&'a [u8], start: &mut u32) -> &'a str {
+    let mut iter = VintArrayIterator::new(&bytes[*start as usize..]);
+    let length = iter.next().unwrap();
+    *start += iter.pos as u32;
+    let slice = &bytes[*start as usize .. *start as usize  + length as usize];
+    *start += length as u32;
+    unsafe {str::from_utf8_unchecked(&slice)}
+}
+
+
 /// An iterator over the keys of a `HashMap`.
 ///
 /// This `struct` is created by the [`keys`] method on [`HashMap`]. See its
@@ -1307,16 +1373,6 @@ pub struct RawKeys<'a> {
     curr_pos: u32,
     curr_el: u32,
     total_el: u32,
-}
-
-#[inline]
-pub fn get_text_and_move_position<'a>(bytes:&'a [u8], start: &mut u32) -> &'a str {
-    let mut iter = VintArrayIterator::new(&bytes[*start as usize..]);
-    let length = iter.next().unwrap();
-    *start += iter.pos as u32;
-    let slice = &bytes[*start as usize .. *start as usize  + length as usize];
-    *start += length as u32;
-    unsafe {str::from_utf8_unchecked(&slice)}
 }
 
 impl<'a> Iterator for RawKeys<'a> {

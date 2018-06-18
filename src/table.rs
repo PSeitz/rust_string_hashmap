@@ -14,7 +14,7 @@ use std::str;
 use std::mem::{size_of, needs_drop};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{self, Unique, NonNull};
-use vint::*;
+use vint::VintArrayIterator;
 use self::BucketState::*;
 
 /// Integer type used for stored hash values.

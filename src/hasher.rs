@@ -1,13 +1,9 @@
 use std::default::Default;
 use std::hash::{Hasher, BuildHasherDefault};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::ptr::copy_nonoverlapping;
 
 
-/// An implementation of the Fowler–Noll–Vo hash function.
-///
-/// See the [crate documentation](index.html) for more details.
-#[allow(missing_copy_implementations)]
 #[derive(Debug, Clone)]
 pub struct FnvYoshiHasher(u32);
 impl Default for FnvYoshiHasher {
@@ -76,7 +72,7 @@ pub fn fnv32a_yoshimitsu_hasher(bytes: &[u8]) -> u32 {
     fnv32a_yoshimitsu_triad(0xD8AFFD71, bytes)
 }
 
-#[inline(always)]
+#[inline]
 pub fn fnv32a_yoshimitsu_triad(seed:u32, bytes: &[u8]) -> u32
 {
     let mut len: u32 = bytes.len() as u32;
@@ -87,43 +83,43 @@ pub fn fnv32a_yoshimitsu_triad(seed:u32, bytes: &[u8]) -> u32
     let mut hash32_b: u32 = 2166136261 + len;
     let mut hash32_c: u32 = 2166136261;
     while len >= 24{
-        hash32_a = (hash32_a ^ (rotl32(read_u32_p(p), 5)  ^ read_u32_p(unsafe{p.offset(4)})))  .wrapping_mul(PRIME);
-        hash32_b = (hash32_b ^ (rotl32(read_u32_p(unsafe{p.offset(8)}), 5)  ^ read_u32_p(unsafe{p.offset(12)}))) .wrapping_mul(PRIME);
-        hash32_c = (hash32_c ^ (rotl32(read_u32_p(unsafe{p.offset(16)}), 5) ^ read_u32_p(unsafe{p.offset(20)}))) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ (rotl32(read_u32_p(p), 5)  ^ read_u32_p(unsafe{p.offset(4)}))).wrapping_mul(PRIME);
+        hash32_b = (hash32_b ^ (rotl32(read_u32_p(unsafe{p.offset(8)}), 5)  ^ read_u32_p(unsafe{p.offset(12)}))).wrapping_mul(PRIME);
+        hash32_c = (hash32_c ^ (rotl32(read_u32_p(unsafe{p.offset(16)}), 5) ^ read_u32_p(unsafe{p.offset(20)}))).wrapping_mul(PRIME);
         len-= 24;
         p = unsafe{p.offset(24)};
     }
 
     if p == bytes.as_ptr() {
-        hash32_a = (hash32_a ^ rotl32(hash32_c, 5)) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ rotl32(hash32_c, 5)).wrapping_mul(PRIME);
     }
     //Cases 0. .31
     if (len & 16) != 0{
-        hash32_a = (hash32_a ^ (rotl32(read_u32_p(p), 5) ^ read_u32_p(unsafe{p.offset(4)}))) .wrapping_mul(PRIME);
-        hash32_b = (hash32_b ^ (rotl32(read_u32_p(unsafe{p.offset(8)}), 5) ^ read_u32_p(unsafe{p.offset(12)}))) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ (rotl32(read_u32_p(p), 5) ^ read_u32_p(unsafe{p.offset(4)}))).wrapping_mul(PRIME);
+        hash32_b = (hash32_b ^ (rotl32(read_u32_p(unsafe{p.offset(8)}), 5) ^ read_u32_p(unsafe{p.offset(12)}))).wrapping_mul(PRIME);
         p = unsafe{p.offset(16)};
     }
     //Cases 0. .15
     if (len & 8) != 0 {
-        hash32_a = (hash32_a ^ read_u32_p(p)) .wrapping_mul(PRIME);
-        hash32_b = (hash32_b ^ read_u32_p(unsafe{p.offset(4)})) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ read_u32_p(p)).wrapping_mul(PRIME);
+        hash32_b = (hash32_b ^ read_u32_p(unsafe{p.offset(4)})).wrapping_mul(PRIME);
         p = unsafe{p.offset(8)};
     }
     //Cases:0. .7
     if (len & 4) != 0 {
-        hash32_a = (hash32_a ^ read_u16_p(p) as u32) .wrapping_mul(PRIME);
-        hash32_b = (hash32_b ^ read_u16_p(unsafe{p.offset(2)}) as u32) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ read_u16_p(p) as u32).wrapping_mul(PRIME);
+        hash32_b = (hash32_b ^ read_u16_p(unsafe{p.offset(2)}) as u32).wrapping_mul(PRIME);
         p = unsafe{p.offset(4)};
     }
     // //Cases:0. .3
     if (len & 2) != 0 {
-        hash32_a = (hash32_a ^ read_u16_p(p) as u32) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ read_u16_p(p) as u32).wrapping_mul(PRIME);
         p = unsafe{p.offset(2)};
     }
     if (len & 1) != 0 {
-        hash32_a = (hash32_a ^ unsafe{*p} as u32) .wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ unsafe{*p} as u32).wrapping_mul(PRIME);
     }
-    hash32_a = (hash32_a ^ rotl32(hash32_b, 5)) .wrapping_mul(PRIME);
+    hash32_a = (hash32_a ^ rotl32(hash32_b, 5)).wrapping_mul(PRIME);
     hash32_a ^ (hash32_a >> 16)
 
 }
