@@ -8,7 +8,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::alloc::{Global, Alloc, Layout, LayoutErr, CollectionAllocErr, oom};
+use std::alloc::{Global, Alloc, Layout, LayoutErr, CollectionAllocErr, handle_alloc_error};
 use std::marker;
 use std::str;
 use std::mem::{size_of, needs_drop};
@@ -602,7 +602,7 @@ impl<V> RawTable<V> {
         // point into it.
         let (layout, _) = calculate_layout::<V>(capacity)?;
         let buffer = Global.alloc(layout).map_err(|e| match fallibility {
-            Infallible => oom(layout),
+            Infallible => handle_alloc_error(layout),
             Fallible => e,
         })?;
 
