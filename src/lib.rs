@@ -43,7 +43,7 @@ use hasher::FnvYoshiBuildHasher;
 // use self::Entry::*;
 use self::VacantEntryState::*;
 use std::str;
-use std::alloc::{CollectionAllocErr};
+use std::collections::CollectionAllocErr;
 use std::cmp::max;
 use std::fmt::{self, Debug};
 #[allow(deprecated)]
