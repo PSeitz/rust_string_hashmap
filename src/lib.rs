@@ -544,7 +544,7 @@ fn robin_hood<'a, V: 'a>(mut bucket: FullBucketMut<'a, V>,
             let full_bucket = match probe.peek() {
                 Empty(bucket) => {
                     // Found a hole!
-                    let bucket = bucket.put(hash, &&text_position, val);
+                    let bucket = bucket.put(hash, text_position, val);
                     // Now that it's stolen, just read the value's pointer
                     // right out of the table! Go back to the *starting point*.
                     //
@@ -619,7 +619,7 @@ impl<V, S> HashMap<V, S>
             // Not even DIBs for Robin Hood.
             buckets = match buckets.peek() {
                 Empty(empty) => {
-                    empty.put(hash, &text_position, v);
+                    empty.put(hash, text_position, v);
                     return;
                 }
                 Full(b) => b.into_bucket(),
@@ -1186,9 +1186,9 @@ impl<V, S> HashMap<V, S>
     /// assert_eq!(map.insert(37, "c"), Some("b"));
     /// assert_eq!(map[&37], "c");
     /// ```
-    pub fn insert_hashed(&mut self, hash: SafeHash, k: String, v: V) {
+    pub fn insert_hashed(&mut self, hash: SafeHash, k: &str, v: V) {
         self.reserve(1);
-        self.insert_hashed_nocheck(hash, &k, v);
+        self.insert_hashed_nocheck(hash, k, v);
     }
 
 }
@@ -1490,7 +1490,7 @@ where
                         bucket.table_mut().set_tag(true);
                     }
                     let mut text_position = add_and_get_text_position(key, &mut bucket.table_mut().raw_text_data );
-                    bucket.put(hash, &text_position, value)
+                    bucket.put(hash, text_position, value)
                 },
             };
             b.into_mut_refs().1
@@ -1996,7 +1996,7 @@ mod test_map {
                 slot.borrow_mut()[k] += 1;
             });
 
-            Droppable { k: k }
+            Droppable { k }
         }
     }
 

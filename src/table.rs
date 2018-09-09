@@ -180,7 +180,7 @@ pub struct SafeHash {
 impl SafeHash {
     /// Peek at the hash value, which is guaranteed to be non-zero.
     #[inline(always)]
-    pub fn inspect(&self) -> HashUint {
+    pub fn inspect(self) -> HashUint {
         self.hash
     }
 
@@ -215,10 +215,10 @@ fn can_alias_safehash_as_hash() {
 // make a RawBucket point to invalid memory using safe code.
 impl<V> RawBucket<V> {
     unsafe fn hash(&self) -> *mut HashUint {
-        self.hash_start.offset(self.idx as isize)
+        self.hash_start.add(self.idx)
     }
     unsafe fn pair(&self) -> *mut (BucketType, V) {
-        self.pair_start.offset(self.idx as isize) as *mut (BucketType, V)
+        self.pair_start.add(self.idx) as *mut (BucketType, V)
     }
 }
 
@@ -405,11 +405,11 @@ impl<V, M: Deref<Target = RawTable<V>>> EmptyBucket<V, M>
     /// the newly-filled slot in the hashtable.
     ///
     /// Use `make_hash` to construct a `SafeHash` to pass to this function.
-    pub fn put(mut self, hash: SafeHash, key: &BucketType, value: V) -> FullBucket<V, M> {
+    pub fn put(mut self, hash: SafeHash, key: BucketType, value: V) -> FullBucket<V, M> {
         unsafe {
             *self.raw.hash() = hash.inspect();
             // self.table.borrow_table_mut().raw_text_data.extend(key.as_bytes());
-            ptr::write(self.raw.pair(), (*key, value));
+            ptr::write(self.raw.pair(), (key, value));
             self.table.borrow_table_mut().size += 1;
         }
 
@@ -476,7 +476,7 @@ impl<V, M: Deref<Target = RawTable<V>>> FullBucket<V, M> {
 
 
 #[inline]
-pub fn get_text<'a>(bytes:&'a [u8], start: usize) -> &'a str {
+pub fn get_text(bytes:&[u8], start: usize) -> &str {
     let mut iter = VintArrayIterator::new(&bytes[start..]);
     let length = iter.next().unwrap();
     let slice = &bytes[start + iter.pos .. start + iter.pos + length as usize];
@@ -572,6 +572,7 @@ fn calculate_layout<V>(capacity: usize) -> Result<(Layout, usize), LayoutErr> {
     hashes.extend(pairs)
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum Fallibility {
     Fallible,
     Infallible,
@@ -952,7 +953,7 @@ impl<V: Clone> Clone for RawTable<V> {
                 *new_buckets.hash() = *buckets.hash();
                 if *new_buckets.hash() != EMPTY_BUCKET {
                     let pair_ptr = buckets.pair();
-                    let kv = ((*pair_ptr).0.clone(), (*pair_ptr).1.clone());
+                    let kv = ((*pair_ptr).0, (*pair_ptr).1.clone());
                     ptr::write(new_buckets.pair(), kv);
                 }
                 buckets.idx += 1;

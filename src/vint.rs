@@ -20,7 +20,7 @@ pub(crate) fn is_high_bit_set(input: u8) -> bool {
 /// Only split for performance reasons
 #[inline]
 pub(crate) fn push_n_set_big(val: u32, data: &mut [u8]) {
-    let mut el_u64: u64 = val as u64;
+    let mut el_u64: u64 = u64::from(val);
     el_u64 <<= 4;
     let bytes: [u8; 8] = unsafe { transmute(el_u64) };
     data[4] = bytes[4];
@@ -84,7 +84,7 @@ pub(crate) struct VintArrayIterator<'a> {
 
 impl<'a> VintArrayIterator<'a> {
     pub(crate) fn new(data: &'a [u8]) -> Self {
-        VintArrayIterator { data: data, pos: 0 }
+        VintArrayIterator { data, pos: 0 }
     }
 
     #[inline]

@@ -9,7 +9,7 @@ pub struct FnvYoshiHasher(u32);
 impl Default for FnvYoshiHasher {
     #[inline]
     fn default() -> FnvYoshiHasher {
-        FnvYoshiHasher(0xD8AFFD71)
+        FnvYoshiHasher(0xD8AF_FD71)
     }
 }
 
@@ -25,7 +25,7 @@ impl FnvYoshiHasher {
 impl Hasher for FnvYoshiHasher {
     #[inline]
     fn finish(&self) -> u64 {
-        self.0 as u64
+        u64::from(self.0)
     }
 
     #[inline(always)]
@@ -69,7 +69,7 @@ fn read_u16_p(p: *const u8) -> u16{
 
 #[inline(always)]
 pub fn fnv32a_yoshimitsu_hasher(bytes: &[u8]) -> u32 {
-    fnv32a_yoshimitsu_triad(0xD8AFFD71, bytes)
+    fnv32a_yoshimitsu_triad(0xD8AF_FD71, bytes)
 }
 
 #[inline]
@@ -78,10 +78,10 @@ pub fn fnv32a_yoshimitsu_triad(seed:u32, bytes: &[u8]) -> u32
     let mut len: u32 = bytes.len() as u32;
     let mut p: *const u8 = bytes.as_ptr();
 
-    const PRIME:u32 = 709607;
-    let mut hash32_a: u32 = seed ^ 2166136261;
-    let mut hash32_b: u32 = 2166136261 + len;
-    let mut hash32_c: u32 = 2166136261;
+    const PRIME:u32 = 709_607;
+    let mut hash32_a: u32 = seed ^ 2_166_136_261;
+    let mut hash32_b: u32 = 2_166_136_261 + len;
+    let mut hash32_c: u32 = 2_166_136_261;
     while len >= 24{
         hash32_a = (hash32_a ^ (rotl32(read_u32_p(p), 5)  ^ read_u32_p(unsafe{p.offset(4)}))).wrapping_mul(PRIME);
         hash32_b = (hash32_b ^ (rotl32(read_u32_p(unsafe{p.offset(8)}), 5)  ^ read_u32_p(unsafe{p.offset(12)}))).wrapping_mul(PRIME);
@@ -107,17 +107,17 @@ pub fn fnv32a_yoshimitsu_triad(seed:u32, bytes: &[u8]) -> u32
     }
     //Cases:0. .7
     if (len & 4) != 0 {
-        hash32_a = (hash32_a ^ read_u16_p(p) as u32).wrapping_mul(PRIME);
-        hash32_b = (hash32_b ^ read_u16_p(unsafe{p.offset(2)}) as u32).wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ u32::from(read_u16_p(p))).wrapping_mul(PRIME);
+        hash32_b = (hash32_b ^ u32::from(read_u16_p(unsafe{p.offset(2)}))).wrapping_mul(PRIME);
         p = unsafe{p.offset(4)};
     }
     // //Cases:0. .3
     if (len & 2) != 0 {
-        hash32_a = (hash32_a ^ read_u16_p(p) as u32).wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ u32::from(read_u16_p(p))).wrapping_mul(PRIME);
         p = unsafe{p.offset(2)};
     }
     if (len & 1) != 0 {
-        hash32_a = (hash32_a ^ unsafe{*p} as u32).wrapping_mul(PRIME);
+        hash32_a = (hash32_a ^ u32::from(unsafe{*p})).wrapping_mul(PRIME);
     }
     hash32_a = (hash32_a ^ rotl32(hash32_b, 5)).wrapping_mul(PRIME);
     hash32_a ^ (hash32_a >> 16)

@@ -13,7 +13,7 @@ fn main() {
     // test_yoshi(&contents);
     // test_fnv(&contents);
     // test_stacker(&contents);
-    // test_custom(&contents);
+    test_custom(&contents);
     test_custom_entry(&contents);
     // test_yoshi(&contents);
     // test_fnv(&contents);
@@ -91,13 +91,14 @@ fn test_normal(text: &str)-> bool {
 
 fn test_custom(text: &str) -> bool {
     let mut mappo:term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
+    mappo.reserve(100_000);
     // let mut all_the_bytes:Vec<u8> = Vec::with_capacity(5_000_000);
-    print_time!("term_hashmap");
+    print_time!("term_hashmap pre_hashed");
     // mappo.reserve(100_000);
     for line in text.split_whitespace() {
         let hash = mappo.make_hash(line);
         if !mappo.contains_hashed_key(line, hash) {
-            mappo.insert_hashed(hash, line.to_owned(), 10);
+            mappo.insert_hashed(hash, line, 10);
         }
         // all_the_bytes.extend(line.as_bytes());
     }
