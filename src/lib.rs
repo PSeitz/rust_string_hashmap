@@ -33,7 +33,7 @@ extern crate byteorder;
 
 pub mod hasher;
 mod table;
-pub mod stacker;
+// pub mod stacker;
 mod vint;
 
 use vint::encode_num;

@@ -142,28 +142,28 @@ fn test_set(text: &str) {
     println!("{:?}", mappo.len());
 }
 
-use term_hashmap::stacker::split_memory;
-use term_hashmap::stacker::Heap;
-use term_hashmap::stacker::TermHashMap;
+// use term_hashmap::stacker::split_memory;
+// use term_hashmap::stacker::Heap;
+// use term_hashmap::stacker::TermHashMap;
 
-fn test_stacker(text: &str) -> u32  {
-    print_time!("test_stacker");
-    let heap_size_in_bytes_per_thread  = 15_550_000;
-    let (heap_size, table_size) = split_memory(heap_size_in_bytes_per_thread);
-    let heap = Heap::with_capacity(heap_size);
-    let mut mappo: TermHashMap = TermHashMap::new(table_size, &heap);
-    // let mut mappo = fnv2::FnvHashMap::default();
-    for line in text.split_whitespace() {
-        let el = mappo.get_or_create::<_, u32>(line);
-        *el.1 += 1;
-        // if !mappo.contains_key(line) {
-        //     mappo.insert(line.to_owned(), 0);
-        // }
-    }
-    mappo.get_or_create::<_, u32>("test").0
-    // println!("{:?}", mappo.len());
-    // println!("oke");
-}
+// fn test_stacker(text: &str) -> u32  {
+//     print_time!("test_stacker");
+//     let heap_size_in_bytes_per_thread  = 15_550_000;
+//     let (heap_size, table_size) = split_memory(heap_size_in_bytes_per_thread);
+//     let heap = Heap::with_capacity(heap_size);
+//     let mut mappo: TermHashMap = TermHashMap::new(table_size, &heap);
+//     // let mut mappo = fnv2::FnvHashMap::default();
+//     for line in text.split_whitespace() {
+//         let el = mappo.get_or_create::<_, u32>(line);
+//         *el.1 += 1;
+//         // if !mappo.contains_key(line) {
+//         //     mappo.insert(line.to_owned(), 0);
+//         // }
+//     }
+//     mappo.get_or_create::<_, u32>("test").0
+//     // println!("{:?}", mappo.len());
+//     // println!("oke");
+// }
 
 
 
