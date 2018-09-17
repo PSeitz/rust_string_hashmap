@@ -38,7 +38,7 @@ const EMPTY: u32 = 1;
 /// null and the tag functions shouldn't be used.
 struct TaggedHashUintPtr(Unique<HashUint>);
 
-type BucketType = u32;
+type BucketType = u64; //The bucket is the position in the text_data block
 
 impl TaggedHashUintPtr {
     #[inline]
