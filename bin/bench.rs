@@ -1,6 +1,6 @@
-extern crate term_hashmap;
-extern crate fnv;
 extern crate cpuprofiler;
+extern crate fnv;
+extern crate term_hashmap;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -9,7 +9,10 @@ extern crate measure_time;
 fn main() {
     let mut contents = String::new();
     // File::open("1342-0.txt").unwrap().read_to_string(&mut contents).unwrap();
-    File::open("big.txt").unwrap().read_to_string(&mut contents).unwrap();
+    File::open("big.txt")
+        .unwrap()
+        .read_to_string(&mut contents)
+        .unwrap();
     // test_yoshi(&contents);
     // test_fnv(&contents);
     // test_stacker(&contents);
@@ -46,7 +49,7 @@ fn main() {
     // PROFILER.lock().unwrap().stop().unwrap();
 }
 
-fn test_yoshi(text: &str)-> bool {
+fn test_yoshi(text: &str) -> bool {
     let mut mappo = term_hashmap::hasher::FnvYoshiHashMap::default();
     print_time!("yoshi");
     // mappo.reserve(100_000);
@@ -59,14 +62,14 @@ fn test_yoshi(text: &str)-> bool {
     // println!("{:?}", mappo.len());
 }
 
-fn test_fnv(text: &str)-> bool {
+fn test_fnv(text: &str) -> bool {
     let mut mappo = fnv::FnvHashMap::default();
     print_time!("FnvHashMap");
     // mappo.reserve(100_000);
     for line in text.split_whitespace() {
         if !mappo.contains_key(line) {
             mappo.insert(line.to_string(), 1);
-        }else{
+        } else {
             *mappo.get_mut(line).unwrap() += 1;
         }
     }
@@ -74,14 +77,14 @@ fn test_fnv(text: &str)-> bool {
     // println!("{:?}", mappo.len());
 }
 
-fn test_normal(text: &str)-> bool {
-    let mut mappo:std::collections::HashMap<String, u32> = std::collections::HashMap::default();
+fn test_normal(text: &str) -> bool {
+    let mut mappo: std::collections::HashMap<String, u32> = std::collections::HashMap::default();
     print_time!("HashMap");
     // mappo.reserve(100_000);
     for line in text.split_whitespace() {
         if !mappo.contains_key(line) {
             mappo.insert(line.to_string(), 1);
-        }else{
+        } else {
             *mappo.get_mut(line).unwrap() += 1;
         }
     }
@@ -90,7 +93,7 @@ fn test_normal(text: &str)-> bool {
 }
 
 fn test_custom(text: &str) -> bool {
-    let mut mappo:term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
+    let mut mappo: term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
     mappo.reserve(100_000);
     // let mut all_the_bytes:Vec<u8> = Vec::with_capacity(5_000_000);
     print_time!("term_hashmap pre_hashed");
@@ -106,18 +109,15 @@ fn test_custom(text: &str) -> bool {
     // println!("{:?}", mappo.len());
 }
 
-
 use cpuprofiler::PROFILER;
 
-
 fn test_custom_entry(text: &str) -> bool {
-    let mut mappo:term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
+    let mut mappo: term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
     // let mut all_the_bytes:Vec<u8> = Vec::with_capacity(5_000_000);
     print_time!("term_hashmap entry api");
     mappo.reserve(100_000);
     for line in text.split_whitespace() {
-
-        let stat = mappo.get_or_insert(line, ||0);
+        let stat = mappo.get_or_insert(line, || 0);
         *stat += 1;
         // let stat = mappo.entry(line).or_insert(0);
         // *stat += 1;
@@ -165,8 +165,6 @@ fn test_set(text: &str) {
 //     // println!("{:?}", mappo.len());
 //     // println!("oke");
 // }
-
-
 
 // #[test]
 // fn test_map() {

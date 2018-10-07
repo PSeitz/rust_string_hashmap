@@ -8,15 +8,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::alloc::{Global, Alloc, Layout, LayoutErr, handle_alloc_error};
+use self::BucketState::*;
+use std::alloc::{handle_alloc_error, Alloc, Global, Layout, LayoutErr};
 use std::collections::CollectionAllocErr;
 use std::marker;
-use std::str;
-use std::mem::{size_of, needs_drop};
+use std::mem::{needs_drop, size_of};
 use std::ops::{Deref, DerefMut};
-use std::ptr::{self, Unique, NonNull};
+use std::ptr::{self, NonNull, Unique};
+use std::str;
 use vint::VintArrayIterator;
-use self::BucketState::*;
 
 /// Integer type used for stored hash values.
 ///
@@ -193,7 +193,9 @@ impl SafeHash {
         //
         // Truncate hash to fit in `HashUint`.
         let hash_bits = size_of::<HashUint>() * 8;
-        SafeHash { hash: (1 << (hash_bits - 1)) | (hash as HashUint) }
+        SafeHash {
+            hash: (1 << (hash_bits - 1)) | (hash as HashUint),
+        }
     }
 }
 
@@ -261,7 +263,8 @@ impl<V, M> Bucket<V, M> {
 }
 
 impl<V, M> Deref for FullBucket<V, M>
-    where M: Deref<Target = RawTable<V>>
+where
+    M: Deref<Target = RawTable<V>>,
 {
     type Target = RawTable<V>;
     fn deref(&self) -> &RawTable<V> {
@@ -275,7 +278,6 @@ pub trait Put<V> {
     unsafe fn borrow_table_mut(&mut self) -> &mut RawTable<V>;
 }
 
-
 impl<'t, V> Put<V> for &'t mut RawTable<V> {
     unsafe fn borrow_table_mut(&mut self) -> &mut RawTable<V> {
         *self
@@ -283,7 +285,8 @@ impl<'t, V> Put<V> for &'t mut RawTable<V> {
 }
 
 impl<V, M> Put<V> for Bucket<V, M>
-    where M: Put<V>
+where
+    M: Put<V>,
 {
     unsafe fn borrow_table_mut(&mut self) -> &mut RawTable<V> {
         self.table.borrow_table_mut()
@@ -291,7 +294,8 @@ impl<V, M> Put<V> for Bucket<V, M>
 }
 
 impl<V, M> Put<V> for FullBucket<V, M>
-    where M: Put<V>
+where
+    M: Put<V>,
 {
     unsafe fn borrow_table_mut(&mut self) -> &mut RawTable<V> {
         self.table.borrow_table_mut()
@@ -306,8 +310,10 @@ impl<V, M: Deref<Target = RawTable<V>>> Bucket<V, M> {
     pub fn at_index(table: M, ib_index: usize) -> Bucket<V, M> {
         // if capacity is 0, then the RawBucket will be populated with bogus pointers.
         // This is an uncommon case though, so avoid it in release builds.
-        debug_assert!(table.capacity() > 0,
-                      "Table should have capacity at this point");
+        debug_assert!(
+            table.capacity() > 0,
+            "Table should have capacity at this point"
+        );
         let ib_index = ib_index & table.capacity_mask;
         Bucket {
             raw: table.raw_bucket_at(ib_index),
@@ -362,18 +368,14 @@ impl<V, M: Deref<Target = RawTable<V>>> Bucket<V, M> {
     /// this module.
     pub fn peek(self) -> BucketState<V, M> {
         match unsafe { *self.raw.hash() } {
-            EMPTY_BUCKET => {
-                Empty(EmptyBucket {
-                    raw: self.raw,
-                    table: self.table,
-                })
-            }
-            _ => {
-                Full(FullBucket {
-                    raw: self.raw,
-                    table: self.table,
-                })
-            }
+            EMPTY_BUCKET => Empty(EmptyBucket {
+                raw: self.raw,
+                table: self.table,
+            }),
+            _ => Full(FullBucket {
+                raw: self.raw,
+                table: self.table,
+            }),
         }
     }
 
@@ -381,7 +383,6 @@ impl<V, M: Deref<Target = RawTable<V>>> Bucket<V, M> {
     pub fn next(&mut self) {
         self.raw.idx = self.raw.idx.wrapping_add(1) & self.table.capacity_mask;
     }
-
 }
 
 impl<V, M: Deref<Target = RawTable<V>>> EmptyBucket<V, M> {
@@ -392,11 +393,11 @@ impl<V, M: Deref<Target = RawTable<V>>> EmptyBucket<V, M> {
             table: self.table,
         }
     }
-
 }
 
 impl<V, M: Deref<Target = RawTable<V>>> EmptyBucket<V, M>
-    where M: Put<V>
+where
+    M: Put<V>,
 {
     /// Puts given key and value pair, along with the key's hash,
     /// into this bucket in the hashtable. Note how `self` is 'moved' into
@@ -459,7 +460,11 @@ impl<V, M: Deref<Target = RawTable<V>>> FullBucket<V, M> {
 
     #[inline]
     pub fn hash(&self) -> SafeHash {
-        unsafe { SafeHash { hash: *self.raw.hash() } }
+        unsafe {
+            SafeHash {
+                hash: *self.raw.hash(),
+            }
+        }
     }
 
     /// Gets references to the key and value at a given index.
@@ -468,19 +473,21 @@ impl<V, M: Deref<Target = RawTable<V>>> FullBucket<V, M> {
             let pair_ptr = self.raw.pair();
             let text_offsets = (*pair_ptr).0;
             // let slice = &self.table.raw_text_data[text_offsets as usize .. text_offsets as usize + text_offsets.1 as usize];
-            (get_text(&self.table.raw_text_data, text_offsets as usize), &(*pair_ptr).1)
+            (
+                get_text(&self.table.raw_text_data, text_offsets as usize),
+                &(*pair_ptr).1,
+            )
             // (&(*pair_ptr).0, &(*pair_ptr).1)
         }
     }
 }
 
-
 #[inline]
-pub fn get_text(bytes:&[u8], start: usize) -> &str {
+pub fn get_text(bytes: &[u8], start: usize) -> &str {
     let mut iter = VintArrayIterator::new(&bytes[start..]);
     let length = iter.next().unwrap();
-    let slice = &bytes[start + iter.pos .. start + iter.pos + length as usize];
-    unsafe {str::from_utf8_unchecked(&slice)}
+    let slice = &bytes[start + iter.pos..start + iter.pos + length as usize];
+    unsafe { str::from_utf8_unchecked(&slice) }
 }
 
 // We take a mutable reference to the table instead of accepting anything that
@@ -497,12 +504,14 @@ impl<'t, V> FullBucket<V, &'t mut RawTable<V>> {
         unsafe {
             *self.raw.hash() = EMPTY_BUCKET;
             let (k, v) = ptr::read(self.raw.pair());
-            (EmptyBucket {
-                 raw: self.raw,
-                 table: self.table,
-             },
-            k,
-            v)
+            (
+                EmptyBucket {
+                    raw: self.raw,
+                    table: self.table,
+                },
+                k,
+                v,
+            )
         }
     }
 }
@@ -510,7 +519,8 @@ impl<'t, V> FullBucket<V, &'t mut RawTable<V>> {
 // This use of `Put` is misleading and restrictive, but safe and sufficient for our use cases
 // where `M` is a full bucket or table reference type with mutable access to the table.
 impl<V, M> FullBucket<V, M>
-    where M: Put<V>
+where
+    M: Put<V>,
 {
     pub fn replace(&mut self, h: SafeHash, k: BucketType, v: V) -> (SafeHash, BucketType, V) {
         unsafe {
@@ -523,7 +533,8 @@ impl<V, M> FullBucket<V, M>
 }
 
 impl<V, M> FullBucket<V, M>
-    where M: Deref<Target = RawTable<V>> + DerefMut
+where
+    M: Deref<Target = RawTable<V>> + DerefMut,
 {
     /// Gets mutable references to the key and value at a given index.
     pub fn read_mut(&mut self) -> (&mut BucketType, &mut V) {
@@ -535,7 +546,8 @@ impl<V, M> FullBucket<V, M>
 }
 
 impl<'t, V, M> FullBucket<V, M>
-    where M: Deref<Target = RawTable<V>> + 't
+where
+    M: Deref<Target = RawTable<V>> + 't,
 {
     /// Exchange a bucket state for immutable references into the table.
     /// Because the underlying reference to the table is also consumed,
@@ -551,7 +563,8 @@ impl<'t, V, M> FullBucket<V, M>
 }
 
 impl<'t, V, M> FullBucket<V, M>
-    where M: Deref<Target = RawTable<V>> + DerefMut + 't
+where
+    M: Deref<Target = RawTable<V>> + DerefMut + 't,
 {
     /// This works similarly to `into_refs`, exchanging a bucket state
     /// for mutable references into the table.
@@ -562,7 +575,6 @@ impl<'t, V, M> FullBucket<V, M>
         }
     }
 }
-
 
 // Returns a Layout which describes the allocation required for a hash table,
 // and the offset of the array of (key, value) pairs in the allocation.
@@ -623,7 +635,7 @@ impl<V> RawTable<V> {
         match Self::new_uninitialized_internal(capacity, Infallible) {
             Err(CollectionAllocErr::CapacityOverflow) => panic!("capacity overflow"),
             Err(CollectionAllocErr::AllocErr) => unreachable!(),
-            Ok(table) => { table }
+            Ok(table) => table,
         }
     }
 
@@ -663,7 +675,7 @@ impl<V> RawTable<V> {
         match Self::new_internal(capacity, Infallible) {
             Err(CollectionAllocErr::CapacityOverflow) => panic!("capacity overflow"),
             Err(CollectionAllocErr::AllocErr) => unreachable!(),
-            Ok(table) => { table }
+            Ok(table) => table,
         }
     }
 
@@ -678,7 +690,6 @@ impl<V> RawTable<V> {
         cap * size_of::<u32>() + //Hashes
         cap * size_of::<(BucketType, V)>() + // BucketType = Pointer To raw text, Value
         self.raw_text_data.len() + 24 // Raw text data
-
     }
 
     /// The number of elements ever `put` in the hashtable, minus the number
@@ -698,7 +709,7 @@ impl<V> RawTable<V> {
     pub fn iter(&self) -> Iter<V> {
         Iter {
             iter: self.raw_buckets(),
-            raw_text: &self.raw_text_data
+            raw_text: &self.raw_text_data,
         }
     }
 
@@ -711,7 +722,9 @@ impl<V> RawTable<V> {
     }
 
     pub fn into_iter(self) -> IntoIter<V> {
-        let RawBuckets { raw, elems_left, .. } = self.raw_buckets();
+        let RawBuckets {
+            raw, elems_left, ..
+        } = self.raw_buckets();
         // Replace the marker regardless of lifetime bounds on parameters.
         IntoIter {
             iter: RawBuckets {
@@ -777,7 +790,6 @@ impl<'a, V> Clone for RawBuckets<'a, V> {
     }
 }
 
-
 impl<'a, V> Iterator for RawBuckets<'a, V> {
     type Item = RawBucket<V>;
 
@@ -809,11 +821,10 @@ impl<'a, V> ExactSizeIterator for RawBuckets<'a, V> {
     }
 }
 
-
 // Iterator over shared references to entries in a table.
 pub struct Iter<'a, V: 'a> {
     iter: RawBuckets<'a, V>,
-    raw_text: &'a[u8],
+    raw_text: &'a [u8],
 }
 
 unsafe impl<'a, V: Sync> Sync for Iter<'a, V> {}
@@ -832,7 +843,7 @@ impl<'a, V> Clone for Iter<'a, V> {
 // Iterator over mutable references to entries in a table.
 pub struct IterMut<'a, V: 'a> {
     iter: RawBuckets<'a, V>,
-    raw_text: &'a[u8],
+    raw_text: &'a [u8],
     // To ensure invariance with respect to V
     _marker: marker::PhantomData<&'a mut V>,
 }
@@ -878,7 +889,10 @@ impl<'a, V> Iterator for Iter<'a, V> {
             let text_offsets = (*pair_ptr).0;
             // get_text(&self.raw_text, text_offsets as usize);
             // (&(*pair_ptr).0, &(*pair_ptr).1)
-            (get_text(&self.raw_text, text_offsets as usize), &(*pair_ptr).1)
+            (
+                get_text(&self.raw_text, text_offsets as usize),
+                &(*pair_ptr).1,
+            )
         })
     }
 
@@ -901,7 +915,10 @@ impl<'a, V> Iterator for IterMut<'a, V> {
             let pair_ptr = raw.pair();
             // (&(*pair_ptr).0, &mut (*pair_ptr).1)
             let text_offsets = (*pair_ptr).0;
-            (get_text(&self.raw_text, text_offsets as usize),  &mut (*pair_ptr).1)
+            (
+                get_text(&self.raw_text, text_offsets as usize),
+                &mut (*pair_ptr).1,
+            )
         })
     }
 
@@ -939,7 +956,6 @@ impl<V> ExactSizeIterator for IntoIter<V> {
         self.iter().len()
     }
 }
-
 
 impl<V: Clone> Clone for RawTable<V> {
     fn clone(&self) -> RawTable<V> {

@@ -74,7 +74,6 @@ pub(crate) fn encode_num(val: u32) -> ([u8; 8], u8) {
     (data, pos)
 }
 
-
 #[derive(Debug, Clone)]
 pub(crate) struct VintArrayIterator<'a> {
     pub(crate) data: &'a [u8],
@@ -155,4 +154,3 @@ impl<'a> Iterator for VintArrayIterator<'a> {
         )
     }
 }
-
