@@ -21,7 +21,7 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
-
+#![feature(alloc_layout_extra)]
 #![feature(try_reserve)]
 #![feature(ptr_internals)]
 #![feature(allocator_api)]
