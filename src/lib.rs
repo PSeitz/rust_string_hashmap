@@ -43,7 +43,7 @@ use vint::VintArrayIterator;
 // use self::Entry::*;
 use self::VacantEntryState::*;
 use std::cmp::max;
-use std::collections::CollectionAllocErr;
+use std::collections::TryReserveError;
 use std::fmt::{self, Debug};
 #[allow(deprecated)]
 use std::hash::BuildHasher;
@@ -74,7 +74,7 @@ impl DefaultResizePolicy {
     /// provide that capacity, accounting for maximum loading. The raw capacity
     /// is always zero or a power of two.
     #[inline]
-    fn try_raw_capacity(&self, len: usize) -> Result<usize, CollectionAllocErr> {
+    fn try_raw_capacity(&self, len: usize) -> Result<usize, TryReserveError> {
         if len == 0 {
             Ok(0)
         } else {
@@ -85,7 +85,7 @@ impl DefaultResizePolicy {
                 .checked_mul(11)
                 .map(|l| l / 10)
                 .and_then(|l| l.checked_next_power_of_two())
-                .ok_or(CollectionAllocErr::CapacityOverflow)?;
+                .ok_or(TryReserveError::CapacityOverflow)?;
 
             raw_cap = max(MIN_NONZERO_RAW_CAPACITY, raw_cap);
             Ok(raw_cap)
@@ -755,8 +755,8 @@ where
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         match self.reserve_internal(additional, Infallible) {
-            Err(CollectionAllocErr::CapacityOverflow) => panic!("capacity overflow"),
-            Err(CollectionAllocErr::AllocErr) => unreachable!(),
+            Err(TryReserveError::CapacityOverflow) => panic!("capacity overflow"),
+            Err(TryReserveError::AllocError{..}) => unreachable!(),
             Ok(()) => { /* yay */ }
         }
     }
@@ -778,7 +778,7 @@ where
     /// let mut map: HashMap<&str, isize> = HashMap::new();
     /// map.try_reserve(10).expect("why is the test harness OOMing on 10 bytes?");
     /// ```
-    pub fn try_reserve(&mut self, additional: usize) -> Result<(), CollectionAllocErr> {
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.reserve_internal(additional, Fallible)
     }
 
@@ -786,13 +786,13 @@ where
         &mut self,
         additional: usize,
         fallibility: Fallibility,
-    ) -> Result<(), CollectionAllocErr> {
+    ) -> Result<(), TryReserveError> {
         let remaining = self.capacity() - self.len(); // this can't overflow
         if remaining < additional {
             let min_cap = self
                 .len()
                 .checked_add(additional)
-                .ok_or(CollectionAllocErr::CapacityOverflow)?;
+                .ok_or(TryReserveError::CapacityOverflow)?;
             let raw_cap = self.resize_policy.try_raw_capacity(min_cap)?;
             self.try_resize(raw_cap, fallibility)?;
         } else if self.table.tag() && remaining <= self.len() {
@@ -815,7 +815,7 @@ where
         &mut self,
         new_raw_cap: usize,
         fallibility: Fallibility,
-    ) -> Result<(), CollectionAllocErr> {
+    ) -> Result<(), TryReserveError> {
         assert!(self.table.size() <= new_raw_cap);
         assert!(new_raw_cap.is_power_of_two() || new_raw_cap == 0);
 
@@ -1505,7 +1505,7 @@ where
                     if disp >= DISPLACEMENT_THRESHOLD {
                         bucket.table_mut().set_tag(true);
                     }
-                    let mut text_position =
+                    let text_position =
                         add_and_get_text_position(key, &mut bucket.table_mut().raw_text_data);
                     bucket.put(hash, text_position, value)
                 }
@@ -2379,7 +2379,7 @@ mod test_map {
     //         if let Err(CapacityOverflow) = empty_bytes.try_reserve(max_no_ovf) {
     //         } else { panic!("isize::MAX + 1 should trigger a CapacityOverflow!") }
     //     } else {
-    //         if let Err(AllocErr) = empty_bytes.try_reserve(max_no_ovf) {
+    //         if let Err(AllocError) = empty_bytes.try_reserve(max_no_ovf) {
     //         } else { panic!("isize::MAX + 1 should trigger an OOM!") }
     //     }
     // }

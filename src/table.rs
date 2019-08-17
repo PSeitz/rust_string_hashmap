@@ -10,7 +10,7 @@
 
 use self::BucketState::*;
 use std::alloc::{handle_alloc_error, Alloc, Global, Layout, LayoutErr};
-use std::collections::CollectionAllocErr;
+use std::collections::TryReserveError;
 use std::marker;
 use std::mem::{needs_drop, size_of};
 use std::ops::{Deref, DerefMut};
@@ -599,7 +599,7 @@ impl<V> RawTable<V> {
     unsafe fn new_uninitialized_internal(
         capacity: usize,
         fallibility: Fallibility,
-    ) -> Result<RawTable<V>, CollectionAllocErr> {
+    ) -> Result<RawTable<V>, TryReserveError> {
         if capacity == 0 {
             return Ok(RawTable {
                 size: 0,
@@ -618,7 +618,7 @@ impl<V> RawTable<V> {
         let buffer = Global.alloc(layout).map_err(|e| match fallibility {
             Infallible => handle_alloc_error(layout),
             Fallible => e,
-        })?;
+        }).unwrap(); // TODO fix conversion
 
         Ok(RawTable {
             capacity_mask: capacity.wrapping_sub(1),
@@ -633,8 +633,8 @@ impl<V> RawTable<V> {
     /// at the very least, set every hash to EMPTY_BUCKET.
     unsafe fn new_uninitialized(capacity: usize) -> RawTable<V> {
         match Self::new_uninitialized_internal(capacity, Infallible) {
-            Err(CollectionAllocErr::CapacityOverflow) => panic!("capacity overflow"),
-            Err(CollectionAllocErr::AllocErr) => unreachable!(),
+            Err(TryReserveError::CapacityOverflow) => panic!("capacity overflow"),
+            Err(TryReserveError::AllocError{..}) => unreachable!(),
             Ok(table) => table,
         }
     }
@@ -655,7 +655,7 @@ impl<V> RawTable<V> {
     fn new_internal(
         capacity: usize,
         fallibility: Fallibility,
-    ) -> Result<RawTable<V>, CollectionAllocErr> {
+    ) -> Result<RawTable<V>, TryReserveError> {
         unsafe {
             let ret = RawTable::new_uninitialized_internal(capacity, fallibility)?;
             ptr::write_bytes(ret.hashes.ptr(), 0, capacity);
@@ -664,8 +664,8 @@ impl<V> RawTable<V> {
     }
 
     /// Tries to create a new raw table from a given capacity. If it cannot allocate,
-    /// it returns with AllocErr.
-    pub fn try_new(capacity: usize) -> Result<RawTable<V>, CollectionAllocErr> {
+    /// it returns with AllocError.
+    pub fn try_new(capacity: usize) -> Result<RawTable<V>, TryReserveError> {
         Self::new_internal(capacity, Fallible)
     }
 
@@ -673,8 +673,8 @@ impl<V> RawTable<V> {
     /// initially empty.
     pub fn new(capacity: usize) -> RawTable<V> {
         match Self::new_internal(capacity, Infallible) {
-            Err(CollectionAllocErr::CapacityOverflow) => panic!("capacity overflow"),
-            Err(CollectionAllocErr::AllocErr) => unreachable!(),
+            Err(TryReserveError::CapacityOverflow) => panic!("capacity overflow"),
+            Err(TryReserveError::AllocError{..}) => unreachable!(),
             Ok(table) => table,
         }
     }
