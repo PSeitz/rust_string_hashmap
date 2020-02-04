@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use self::BucketState::*;
-use std::alloc::{handle_alloc_error, Alloc, Global, Layout, LayoutErr};
+use std::alloc::{handle_alloc_error, AllocRef, Global, Layout, LayoutErr};
 use std::collections::TryReserveError;
 use std::marker;
 use std::mem::{needs_drop, size_of};
