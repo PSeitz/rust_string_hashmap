@@ -1329,7 +1329,7 @@ impl<'a> Iterator for RawKeyPositions<'a> {
     type Item = u32;
 
     #[inline]
-    fn next(&mut self) -> Option<(u32)> {
+    fn next(&mut self) -> Option<u32> {
         if self.curr_pos >= self.inner.len() as u32 {
             None
         } else {
@@ -1392,7 +1392,7 @@ impl<'a> Iterator for RawKeys<'a> {
     type Item = &'a str;
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a str)> {
+    fn next(&mut self) -> Option<&'a str> {
         if self.curr_pos >= self.inner.len() as u32 {
             None
         } else {
@@ -1746,7 +1746,7 @@ impl<'a, V> Iterator for Values<'a, V> {
     type Item = &'a V;
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a V)> {
+    fn next(&mut self) -> Option<&'a V> {
         self.inner.next().map(|(_, v)| v)
     }
     #[inline]
@@ -1766,7 +1766,7 @@ impl<'a, V> Iterator for ValuesMut<'a, V> {
     type Item = &'a mut V;
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a mut V)> {
+    fn next(&mut self) -> Option<&'a mut V> {
         self.inner.next().map(|(_, v)| v)
     }
     #[inline]

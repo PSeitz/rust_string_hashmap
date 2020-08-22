@@ -9,7 +9,7 @@
 // except according to those terms.
 
 use self::BucketState::*;
-use std::alloc::{handle_alloc_error, AllocInit, AllocRef, Global, Layout, LayoutErr};
+use std::alloc::{handle_alloc_error, AllocRef, Global, Layout, LayoutErr};
 use std::collections::TryReserveError;
 use std::marker;
 use std::mem::{needs_drop, size_of};
@@ -615,7 +615,7 @@ impl<V> RawTable<V> {
         // we just allocate a single array, and then have the subarrays
         // point into it.
         let (layout, _) = calculate_layout::<V>(capacity)?;
-        let buffer = Global.alloc(layout, AllocInit::Uninitialized).map_err(|e| match fallibility {
+        let buffer = Global.alloc(layout).map_err(|e| match fallibility {
             Infallible => handle_alloc_error(layout),
             Fallible => e,
         }).unwrap(); // TODO fix conversion
@@ -624,7 +624,7 @@ impl<V> RawTable<V> {
             capacity_mask: capacity.wrapping_sub(1),
             size: 0,
             raw_text_data: Vec::with_capacity(capacity * 10),
-            hashes: TaggedHashUintPtr::new(buffer.ptr.cast().as_ptr()),
+            hashes: TaggedHashUintPtr::new(buffer.cast().as_ptr()),
             marker: marker::PhantomData,
         })
     }

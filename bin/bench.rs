@@ -1,4 +1,3 @@
-extern crate cpuprofiler;
 extern crate fnv;
 extern crate term_hashmap;
 use std::fs::File;
@@ -20,7 +19,8 @@ fn main() {
     test_custom_entry(&contents);
     // test_yoshi(&contents);
     // test_fnv(&contents);
-    // // test_normal(&contents);
+    test_normal(&contents);
+    test_normal_entry(&contents);
     // test_stacker(&contents);
     // test_custom(&contents);
     // test_custom_entry(&contents);
@@ -92,6 +92,30 @@ fn test_normal(text: &str) -> bool {
     // println!("{:?}", mappo.len());
 }
 
+fn test_normal_entry(text: &str) -> bool {
+    let mut mappo: std::collections::HashMap<String, u32> = std::collections::HashMap::default();
+    // let mut all_the_bytes:Vec<u8> = Vec::with_capacity(5_000_000);
+    print_time!("FnvHashMap entry api");
+    mappo.reserve(100_000);
+    for line in text.split_whitespace() {
+        *mappo.entry(line.to_string()).or_insert(0) += 1;
+
+        // let stat = mappo.get_or_insert(line, || 0);
+        // *stat += 1;
+        // let stat = mappo.entry(line).or_insert(0);
+        // *stat += 1;
+
+        // mappo.entry(line)
+        // let hash = mappo.make_hash(line);
+        // if !mappo.contains_hashed_key(line, hash) {
+        //     mappo.insert_hashed(hash, line.to_owned(), 10);
+        // }
+        // all_the_bytes.extend(line.as_bytes());
+    }
+    mappo.contains_key("test")
+}
+
+
 fn test_custom(text: &str) -> bool {
     let mut mappo: term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
     mappo.reserve(100_000);
@@ -108,8 +132,6 @@ fn test_custom(text: &str) -> bool {
     mappo.contains_key("test")
     // println!("{:?}", mappo.len());
 }
-
-use cpuprofiler::PROFILER;
 
 fn test_custom_entry(text: &str) -> bool {
     let mut mappo: term_hashmap::HashMap<u32> = term_hashmap::HashMap::default();
